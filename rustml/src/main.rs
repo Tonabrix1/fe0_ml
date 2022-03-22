@@ -3,7 +3,7 @@ use ndarray::Array2;
 fn main() {
     let dim = vec![(728,128),(128,10)];
     let x = create_network(dim);
-    println!("{:?}",x[0])
+    println!("{:?}",x)
 }
 
 fn create_network(dim : Vec<(usize,usize)>) -> Vec<Array2<f32>>{
