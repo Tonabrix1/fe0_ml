@@ -10,7 +10,7 @@ fn main() {
     //28*28x128x10 neural network is created
     let dim = vec![(input_layer,hidden_layer1),(hidden_layer1,output_layer)];
     let x = create_network(dim);
-    println!("{:?}",x[0])
+    println!("{:?}",x)
 }
 
 /// dim : A list of the dimensions of the connections between each layer
