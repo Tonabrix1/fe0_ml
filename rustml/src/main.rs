@@ -1,5 +1,6 @@
 use ndarray::Array2;
 use rand::Rng;
+use std::io::Error;
 
 //for now just using this as shorthand
 pub struct Net {
@@ -35,7 +36,7 @@ fn main() {
 
 /// dim : A list of the dimensions of the connections between each layer
 /// network : A list of the connections between each layer as uninitialized 0's
-pub fn create_network(dim : Vec<(usize,usize)>) -> Vec<Array2<f64>> {
+pub fn create_network(dim : Vec<(usize,usize)>) -> Result<Vec<Array2<f64>>,Error> {
     let mut network = Vec::new();
     for i in 0..dim.len() {
         let layer = create_layer(dim[i].0,dim[i].1);
@@ -49,7 +50,7 @@ pub fn create_network(dim : Vec<(usize,usize)>) -> Vec<Array2<f64>> {
 // len2D : layer.len() == len2D
 // len1D : layer[n].len() == len1D
 // out : a 2D array (ndarray::Array2) of the connections between matrix-a and matrix-b
-pub fn create_layer(len_2D : usize, len_1D : usize) -> Array2<f64> {
+pub fn create_layer(len_2D : usize, len_1D : usize) -> Result<Array2<f64>, Error> {
     //initializes an array of 0's: len_2D=1; len_1D=3
     // [[0, 0, 0]]
     //the first element is accessed with Array2[[0,0]]
@@ -59,7 +60,7 @@ pub fn create_layer(len_2D : usize, len_1D : usize) -> Array2<f64> {
 
 // randomizes the values of weights in a Net object
 // net : A Net object where all weights have been passed through rand_layer(x,y,weight)
-pub fn init_rand(x : f64, y : f64, mut net : Net) -> Net{
+pub fn init_rand(x : f64, y : f64, mut net : Net) -> Result<Net, Error>{
     for i in 0..net.weights.len() {
         net.weights[i] = rand_layer(x,y,net.weights[i].clone());
     }
@@ -69,7 +70,7 @@ pub fn init_rand(x : f64, y : f64, mut net : Net) -> Net{
 // replaces all values in a 2D matrix with a random number between x and y (inclusive)
 // layer : the original 2D matrix
 // out : the transformed 2D matrix where all values have been randomized
-pub fn rand_layer(x : f64,y : f64, layer : Array2<f64>) -> Array2<f64> {
+pub fn rand_layer(x : f64,y : f64, layer : Array2<f64>) -> Result<Array2<f64>, Error> {
     let mut out = layer.clone();
     for i in 0..out.shape()[0] {
         for j in 0..out.shape()[1] {
@@ -82,7 +83,7 @@ pub fn rand_layer(x : f64,y : f64, layer : Array2<f64>) -> Array2<f64> {
 // calculates the exponential of a matrix
 // layer : the original 2D matrix
 // out : the transformed 2D matrix where each value-x has been replaced by e^x
-pub fn exp_layer(layer : Array2<f64>) -> Array2<f64> {
+pub fn exp_layer(layer : Array2<f64>) -> Result<Array2<f64>, Error> {
     let mut layer = layer.clone();
     for i in 0..layer.shape()[0] {
         for j in 0..layer.shape()[1] {
@@ -93,7 +94,7 @@ pub fn exp_layer(layer : Array2<f64>) -> Array2<f64> {
 }
 
 //creates an array with the same dimensions of layer where all the values are equal to val and subtracts it from layer
-pub fn scalar_sub(layer : Array2<f64>, val : f64) -> Array2<f64> {
+pub fn scalar_sub(layer : Array2<f64>, val : f64) -> Result<Array2<f64>, Error> {
     let mut out = layer.clone();
     for i in 0..out.shape()[0] {
         for j in 0..out.shape()[1] {
@@ -104,7 +105,7 @@ pub fn scalar_sub(layer : Array2<f64>, val : f64) -> Array2<f64> {
 }
 
 //calls scalar_sub and multiplies val by -1.0
-pub fn scalar_add(layer: Array2<f64>, val : f64) -> Array2<f64>{
+pub fn scalar_add(layer: Array2<f64>, val : f64) -> Result<Array2<f64>, Error> {
     let out = scalar_sub(layer,-1.*val);
     out
 }
@@ -112,29 +113,104 @@ pub fn scalar_add(layer: Array2<f64>, val : f64) -> Array2<f64>{
 // creates a matrix of probabilities summing to 1 (or at least close enough :^)
 // layer : the original 2D matrix
 // out : the output of the softmax function (at least an algebraically equivalent function)
-pub fn softmax(layer : Array2<f64>) -> Array2<f64> {
+pub fn softmax(layer : Array2<f64>) -> Result<Array2<f64>, Error> {
     let ex = exp_layer(layer);
     let out = ex.clone()/ex.sum();
     out
 }
 
 // the derivative of the softmax function
-pub fn derive_softmax(layer : Array2<f64>) -> Array2<f64> {
+pub fn derive_softmax(layer : Array2<f64>) -> Result<Array2<f64>,Error> {
     let sf = softmax(layer);
     return sf.clone() * scalar_sub(sf,1.);
 }
 
 // take each value in an array and scales it into a number between 0 and 1
-pub fn sigmoid(layer : Array2<f64>) -> Array2<f64> {
+pub fn sigmoid(layer : Array2<f64>) -> Result<Array2<f64>,Error>  {
     let out = 1./(scalar_add(exp_layer(-1.*layer),1.));
     out
 }
 
 //derivative of the sigmoid function
-pub fn derivative_sigmoid(layer : Array2<f64>) -> Array2<f64> {
+pub fn derivative_sigmoid(layer : Array2<f64>) -> Result<Array2<f64>, Error> {
     let ex = exp_layer(-1.*layer);
     let denom = scalar_add(ex.clone(),1.);
     //e^-x/((e^-1)+1)^2
     let out = ex/(denom.clone()*denom);
     out
+}
+
+
+//----------------------------------------------------------------------------------------------------------------------
+
+
+// https://ngoldbaum.github.io/posts/loading-mnist-data-in-rust/
+// loading from this weird format (ubyte.gz), I'm not gonna bother making something original
+#[derive(Debug)]
+struct MnistData {
+    sizes: Vec<i32>,
+    data: Vec<u8>,
+}
+
+#[derive(Debug)]
+pub struct MnistImage {
+    pub image: Array2<f64>,
+    pub classification: u8,
+}
+
+// https://ngoldbaum.github.io/posts/loading-mnist-data-in-rust/
+// loading from this weird format (ubyte.gz), I'm not gonna bother making something original
+pub fn load_data(dataset_name: &str) -> Result<Vec<MnistImage>, Error> {
+    let filename = format!("{}-labels-idx1-ubyte.gz", dataset_name);
+    let label_data = &MnistData::new(&(File::open(filename))?)?;
+    let filename = format!("{}-images-idx3-ubyte.gz", dataset_name);
+    let images_data = &MnistData::new(&(File::open(filename))?)?;
+    let mut images: Vec<Array2<f64>> = Vec::new();
+    let image_shape = (images_data.sizes[1] * images_data.sizes[2]) as usize;
+
+    for i in 0..images_data.sizes[0] as usize {
+        let start = i * image_shape;
+        let image_data = images_data.data[start..start + image_shape].to_vec();
+        let image_data: Vec<f64> = image_data.into_iter().map(|x| x as f64 / 255.).collect();
+        images.push(Array2::from_shape_vec((image_shape, 1), image_data).unwrap());
+    }
+    let classifications: Vec<u8> = label_data.data.clone();
+    let mut ret: Vec<MnistImage> = Vec::new();
+    for (image, classification) in images.into_iter().zip(classifications.into_iter()) {
+        ret.push(MnistImage {
+            image,
+            classification,
+        })
+    }
+    Ok(ret)
+}
+
+impl MnistData {
+    fn new(f: &File) -> Result<MnistData, Error> {
+        let mut gz = flate2::GzDecoder::new(f);
+        let mut contents: Vec<u8> = Vec::new();
+        gz.read_to_end(&mut contents)?;
+        let mut r = Cursor::new(&contents);
+
+        let magic_number = r.read_i32::<BigEndian>()?;
+
+        let mut sizes: Vec<i32> = Vec::new();
+        let mut data: Vec<u8> = Vec::new();
+
+        match magic_number {
+            2049 => {
+                sizes.push(r.read_i32::<BigEndian>()?);
+            }
+            2051 => {
+                sizes.push(r.read_i32::<BigEndian>()?);
+                sizes.push(r.read_i32::<BigEndian>()?);
+                sizes.push(r.read_i32::<BigEndian>()?);
+            }
+            _ => panic!(),
+        }
+
+        r.read_to_end(&mut data)?;
+
+        Ok(MnistData { sizes, data })
+    }
 }
