@@ -1,8 +1,9 @@
 use ndarray::Array2;
 use rand::Rng;
 use mnist_read;
+use ndarray::s;
 
-//for now just using this as shorthand
+// Add structs to variable activation functions
 pub struct Net {
     pub weights : Vec<Array2<f64>>,
 }
@@ -17,7 +18,7 @@ fn main() {
     let dim = vec![(input_layer,hidden_layer1),(hidden_layer1,output_layer)];
     //28*28x128x10 neural network is created
     //it is stored as [layer1_connections,layer2_ connections,...]
-    let mut my_nn = Net{weights:create_network(dim)};
+    let mut my_nn = Net { weights : create_network(dim)};
     my_nn = init_rand(-1.,1.,my_nn);
 
     //let mut x = my_nn.weights[0].clone();
@@ -32,13 +33,44 @@ fn main() {
     //should print a matrix of numbers between 0 and 1
     //println!("Sigmoid: {:?}", sig);
 
+    //60k 28x28 images
     let train_x = load_image("train-images.idx3-ubyte",60000, 28*28);
+    let train_x = train_x.slice(s![8i32..,..]);
+    //some formatting issues
     let train_y = load_label("train-labels.idx1-ubyte",59992, 1);
+    //10k 28x28 images
     let test_x = load_image("t10k-images.idx3-ubyte",10000,28*28);
+    let test_x = test_x.slice(s![16i32..,..]);
+    //more formatting issues
     let test_y = load_label("t10k-labels.idx1-ubyte",9992,1);
 
-    println!("{:?}",train_x);
-    println!("{:?}", train_y[[1,0]]);
+    let ndx : i32= 20;
+    let slc = train_x.slice(s![ndx,..]);
+    println!("Images: {:?}", train_x);
+    println!("Image {}: {:?}",ndx,slc.clone());
+    println!("Sum of pixels: {:?}",slc.sum());
+    println!("{:?}", train_y);
+}
+
+fn train(mut net : Net, x : Array2<f64>, y : Array2<f64>, epochs : i32) {
+    let lr : f32 = .001;
+    let batch : i32 = 128;
+    for epoch in 0..epochs {
+
+
+        let mut targets = Array2::<f64>::zeros((y.clone().shape()[0],10));
+        targets.slice_mut(s![..,10i32]);
+        let forward_prop1 : Array2<f64> = activate_layer(x.clone(),net.weights[0].clone(), &sigmoid);
+        let forward_prop2 : Array2<f64> = activate_layer(net.weights[0].clone(),net.weights[1].clone(), &softmax);
+
+        let mut error : Array2<f64>= 2.*forward_prop2.clone()-targets / (forward_prop2.clone().shape()[0] as f64*derive_softmax(net.weights[1].clone()));
+        let back_prop2 : Array2<f64> = forward_prop1.clone() * error.clone();
+
+        error = (net.weights[1].clone().dot(&error.clone().t())).t().to_owned() * derive_sigmoid(x.clone().dot(&net.weights[0]));
+
+
+        let back_prop1 : Array2<f64> = &x.t()*error.clone();
+    }
 
 }
 
@@ -61,8 +93,12 @@ pub fn load_label(filename : &str, length1 : usize, length2 : usize) -> Array2<u
     array_labels
 }
 
-pub fn activate_layer(x: Array2<f64>, y : Array2<f64>) {
-    x.dot(&y);
+//pub fn sample_random()
+
+//to-do find a way to store functions as objects so full forward prop can be done
+pub fn activate_layer(x: Array2<f64>, y : Array2<f64>, activation : &dyn Fn(Array2<f64>) -> Array2<f64>) -> Array2<f64> {
+    let out = activation(x.dot(&y));
+    out
 }
 
 /// dim : A list of the dimensions of the connections between each layer
@@ -137,7 +173,7 @@ pub fn scalar_sub(layer : Array2<f64>, val : f64) -> Array2<f64> {
 
 //calls scalar_sub and multiplies val by -1.0
 pub fn scalar_add(layer: Array2<f64>, val : f64) -> Array2<f64>{
-    let out = scalar_sub(layer,-1.*val);
+    let out = scalar_sub(layer,-1. * val);
     out
 }
 
@@ -158,15 +194,15 @@ pub fn derive_softmax(layer : Array2<f64>) -> Array2<f64> {
 
 // take each value in an array and scales it into a number between 0 and 1
 pub fn sigmoid(layer : Array2<f64>) -> Array2<f64> {
-    let out = 1./(scalar_add(exp_layer(-1.*layer),1.));
+    let out = 1./(scalar_add(exp_layer(-1. * layer),1.));
     out
 }
 
 //derivative of the sigmoid function
-pub fn derivative_sigmoid(layer : Array2<f64>) -> Array2<f64> {
+pub fn derive_sigmoid(layer : Array2<f64>) -> Array2<f64> {
     let ex = exp_layer(-1.*layer);
     let denom = scalar_add(ex.clone(),1.);
-    //e^-x/((e^-1)+1)^2
+    //e^-x/((e^-1)+1)^2 = e^-x/((e^-1)+1)*((e^-1)+1)
     let out = ex/(denom.clone()*denom);
     out
 }
