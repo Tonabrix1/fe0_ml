@@ -41,7 +41,7 @@ pub fn create_network(dim : Vec<(usize,usize)>) -> Vec<Array2<f32>> {
 // len1D : layer[n].len() == len1D
 // out : a 2D array (ndarray::Array2) of the connections between matrix-a and matrix-b
 pub fn create_layer(len_2D : usize, len_1D : usize) -> Array2<f32> {
-    //initializes an array of 0's: inner=1; outer=3
+    //initializes an array of 0's: len_2D=1; len_1D=3
     // [[0, 0, 0]]
     //the first element is accessed with Array2[[0,0]]
     let out = Array2::<f32>::zeros((len_2D,len_1D));
