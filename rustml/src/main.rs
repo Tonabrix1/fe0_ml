@@ -124,7 +124,7 @@ pub fn exp_layer(layer : Array2<f64>) -> Array2<f64> {
     layer
 }
 
-//creates an array with the same dimensions of layer where all the values are equal to val and subtracts it from layer
+//subtracts val from each value in a 2D array
 pub fn scalar_sub(layer : Array2<f64>, val : f64) -> Array2<f64> {
     let mut out = layer.clone();
     for i in 0..out.shape()[0] {
