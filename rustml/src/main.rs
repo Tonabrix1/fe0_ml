@@ -33,9 +33,9 @@ fn main() {
     //should print a sum that is (within a reasonable margin of error) equal to 1
     println!("Softmax: {:?}", soft.sum());
 
-    //let sig = sigmoid(my_nn.weights[0].clone());
+    let sig = sigmoid(my_nn.weights[0].clone());
     //should print a matrix of numbers between 0 and 1
-    //println!("Sigmoid: {:?}", sig);
+    println!("Sigmoid: {:?}", sig);
     //60k 28x28 images loaded as a single array
     let train_x = load_image("train-images.idx3-ubyte",60000, input_layer);
     //due to imperfect loading some of the images didn't get loaded
@@ -62,7 +62,6 @@ fn main() {
     let smp = ndarray::Array::from(samples.clone());
     let mut dataset = generate_dataset(train_x.to_owned(),train_y, samples,10);
     let sample = dataset.pop();
-    //doesn't account for duplicates but it works so fuck it
     println!("Random choices out of {}, {:?}",dim_train_x ,smp);
     println!("random sample: {:?}", sample.unwrap().0);
 
@@ -78,7 +77,7 @@ fn train(mut net : Net, x : Array2<f32>, y : usize, epochs : i32, batch : Option
     for epoch in 0..epochs {
         // activate(hidden_layer1.dot(inputs))
         let forward_prop1 : Array2<f32> = activate_layer(net.weights[0].clone(),x.clone(), &sigmoid);
-        // activate(hidden_layer1.dot(hidden_layer2))
+        // activate(hidden_layer2.dot(hidden_layer1))
         let forward_prop2 : Array2<f32> = activate_layer(net.weights[1].clone(),net.weights[0].clone(), &softmax);
 
         // 2 * (output - label) /  (output.shape[0] * derive_softmax(hidden_layer2))
