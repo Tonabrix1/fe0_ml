@@ -3,13 +3,14 @@ use ndarray::Array2;
 use rand::Rng;
 use mnist_read;
 use ndarray::s;
+use rand::seq::SliceRandom;
 
 // Add structs to variable activation functions
 pub struct Net {
     pub weights : Vec<Array2<f32>>,
 }
 
-pub struct Sample (Array2<f32>,usize);
+pub struct Sample (Array2<f32>,Array2<f32>);
 
 fn main() {
     //create the dimensions of each layer
@@ -42,7 +43,7 @@ fn main() {
     //some formatting issues
     let train_y = load_label("train-labels.idx1-ubyte",59992, 1);
     //10k images
-    let test_x = load_image("t10k-images.idx3-ubyte",10000,input_layer;
+    let test_x = load_image("t10k-images.idx3-ubyte",10000,input_layer);
     let test_x = test_x.slice(s![16i32..,..]);
     //more formatting issues
     let test_y = load_label("t10k-labels.idx1-ubyte",9992,1);
@@ -54,10 +55,16 @@ fn main() {
     println!("Sum of pixels: {:?}",slc.sum());
     println!("{:?}", train_y);
 
-    let dim_train_ex = train_x.slice(s![..,0i32]).len();
-    let smp = ndarray::Array::from(sample((dim_train_ex as i32).clone(),128));
+    //this is a terrible way of doing it I'm aware :hmm:
+    let dim_train_x = train_x.slice(s![..,0i32]).len();
+
+    let samples = sample(dim_train_x as i32);
+    let smp = ndarray::Array::from(samples.clone());
+    let mut dataset = generate_dataset(train_x.to_owned(),train_y, samples,10);
+    let sample = dataset.pop();
     //doesn't account for duplicates but it works so fuck it
-    println!("Random choices out of {}, {:?}",dim_train_ex ,smp);
+    println!("Random choices out of {}, {:?}",dim_train_x ,smp);
+    println!("random sample: {:?}", sample.0);
 
 }
 
@@ -65,19 +72,17 @@ fn train(mut net : Net, x : Array2<f32>, y : usize, epochs : i32, batch : Option
     let lr : f32 = lr.unwrap_or(0.001);
     let batch : i32 = batch.unwrap_or(128);
 
+    //second tuple element of generate_dataset
+    let targets = ndarray::Array2::<f32>::zeros((1,10));
 
     for epoch in 0..epochs {
-        // onehot label
-        let mut targets = Array2::<f32>::zeros((1,10));
-        targets.slice_mut(s![..,10i32]);
-        targets[[0,y]] = 1.;
         // activate(hidden_layer1.dot(inputs))
         let forward_prop1 : Array2<f32> = activate_layer(net.weights[0].clone(),x.clone(), &sigmoid);
         // activate(hidden_layer1.dot(hidden_layer2))
         let forward_prop2 : Array2<f32> = activate_layer(net.weights[1].clone(),net.weights[0].clone(), &softmax);
 
         // 2 * (output - label) /  (output.shape[0] * derive_softmax(hidden_layer2))
-        let mut error : Array2<f32> = 2. * forward_prop2.clone() - targets / (forward_prop2.clone().shape()[0] as f32*derive_softmax(net.weights[1].clone()));
+        let mut error : Array2<f32> = 2. * forward_prop2.clone() - targets.clone() / (forward_prop2.clone().shape()[0] as f32*derive_softmax(net.weights[1].clone()));
         let back_prop2 : Array2<f32> = forward_prop1.clone() * error.clone();
 
         error = (net.weights[1].clone().dot(&error.clone().t())).t().to_owned() * derive_sigmoid(x.clone().dot(&net.weights[0]));
@@ -92,21 +97,25 @@ fn train(mut net : Net, x : Array2<f32>, y : usize, epochs : i32, batch : Option
 
 //creates a stack (len batch_size) of random integers from range 0..dim
 //used to select an image and label pair for each training function
-fn sample(dim : i32, batch_size : i32) -> Vec<i32>{
-    let mut stack : Vec<i32> = Vec::new();
-    let mut rnd : i32 = 0;
-    for i in 0..batch_size {
-        rnd = rand::thread_rng().gen_range(0..dim);
-        stack.push(rnd);
-    }
+fn sample(num : i32) -> Vec<i32>{
+    let mut stack : Vec<i32> = (0..num).collect();
+    stack.shuffle(&mut rand::thread_rng());
     stack
 }
 
 
 // takes a stack (Vec<i32>) of stamples from the sample method and creates a stack of (image,label) tuples
-fn generate_dataset(x : Array2<f32>, y : Array2<f32>, samples : Vec<i32>) {
-    let x_len = x.shape()[0];
-    //while let Some(sample) = samples.pop() {}
+fn generate_dataset(x : Array2<f32>, y : Array2<usize>, mut samples : Vec<i32>, output_layers : usize) -> Vec<Sample> {
+    let mut outp : Vec<Sample> = Vec::new();
+    while let Some(sample) = samples.pop() {
+        let image = x[[sample as usize,0usize]].to_owned();
+        let mut one_hot = Array2::<f32>::zeros((output_layers,1));
+        let label = y[[sample as usize,0]];
+        one_hot[[label,0]] = 1.;
+        let curr : Sample = Sample(image, one_hot);
+        outp.push(curr);
+    }
+    outp
 }
 
 //creates a random ly initialized matrix with the dimensions of layer2.dot(layer1)
