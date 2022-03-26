@@ -64,7 +64,7 @@ fn main() {
     let sample = dataset.pop();
     //doesn't account for duplicates but it works so fuck it
     println!("Random choices out of {}, {:?}",dim_train_x ,smp);
-    println!("random sample: {:?}", sample.0);
+    println!("random sample: {:?}", sample.unwrap().0);
 
 }
 
@@ -108,7 +108,7 @@ fn sample(num : i32) -> Vec<i32>{
 fn generate_dataset(x : Array2<f32>, y : Array2<usize>, mut samples : Vec<i32>, output_layers : usize) -> Vec<Sample> {
     let mut outp : Vec<Sample> = Vec::new();
     while let Some(sample) = samples.pop() {
-        let image = x[[sample as usize,0usize]].to_owned();
+        let image = x.slice(s![sample..sample+1,..]).to_owned();
         let mut one_hot = Array2::<f32>::zeros((output_layers,1));
         let label = y[[sample as usize,0]];
         one_hot[[label,0]] = 1.;
