@@ -4,99 +4,154 @@ use rand::Rng;
 use mnist_read;
 use ndarray::s;
 use rand::seq::SliceRandom;
+//use std::io::Write;
 
 // Add structs to variable activation functions
 pub struct Net {
     pub weights : Vec<Array2<f32>>,
+    pub biases : Vec<Array2<f32>>,
 }
 
 pub struct Sample (Array2<f32>,Array2<f32>);
 
 fn main() {
-    //create the dimensions of each layer
-    //planning to do mnist character recognition to build this around, so I will be using 28x28 images
+    // create the dimensions of each layer
+    // planning to do mnist character recognition to build this around, so I will be using 28x28 images
     let input_layer = 28*28;
     let hidden_layer1 = 128;
-    //since there are 10 classes (0-9) the ai will print a "confidence matrix"
+    // since there are 10 classes (0-9) the ai will print a "confidence matrix"
     let output_layer = 10;
-    let dim = vec![(input_layer,hidden_layer1),(hidden_layer1,output_layer)];
-    //28*28x128x10 neural network is created
-    //it is stored as [layer1_connections,layer2_ connections,...]
-    let mut my_nn = Net { weights : create_network(dim)};
+    let dim = vec![(input_layer, hidden_layer1),(hidden_layer1, output_layer)];
+    // 28*28x128x10 neural network is created
+    // it is stored as [layer1_connections,layer2_ connections,...]
+    let mut my_nn = Net { weights : create_network(dim.clone()), biases : generate_bias(dim)};
     my_nn = init_rand(-1.,1.,my_nn);
 
-    let mut x = my_nn.weights[0].clone();
-    x = exp_layer(my_nn.weights[0].clone());
-    println!("Randomized nn: {:?}\n\n\n\ne^weights[0]: {:?}",my_nn.weights[0], x);
+    //let mut x = my_nn.weights[0].clone();
+    //x = exp_layer(my_nn.weights[0].clone());
+    //println!("Randomized nn: {:?}\n\n\n\ne^weights[0]: {:?}",my_nn.weights[0], x);
 
-    let soft = softmax(my_nn.weights[0].clone());
-    //should print a sum that is (within a reasonable margin of error) equal to 1
-    println!("Softmax: {:?}", soft.sum());
+    //let soft = softmax(my_nn.weights[0].clone());
+    // should print a sum that is (within a reasonable margin of error) equal to 1
+    //println!("Softmax: {:?}", soft.sum());
 
-    let sig = sigmoid(my_nn.weights[0].clone());
-    //should print a matrix of numbers between 0 and 1
-    println!("Sigmoid: {:?}", sig);
-    //60k 28x28 images loaded as a single array
+    //let sig = sigmoid(my_nn.weights[1].clone());
+    // should print a matrix of numbers between 0 and 1
+    //println!("Sigmoid: {:?}", sig);
+
+    // 60k 28x28 images loaded as a single array
     let train_x = load_image("train-images.idx3-ubyte",60000, input_layer);
-    //due to imperfect loading some of the images didn't get loaded
+    // due to imperfect loading some of the images didn't get loaded
     let train_x = train_x.slice(s![8i32..,..]);
-    //some formatting issues
+    // some formatting issues
     let train_y = load_label("train-labels.idx1-ubyte",59992, 1);
-    //10k images
+    // 10k images
     let test_x = load_image("t10k-images.idx3-ubyte",10000,input_layer);
     let test_x = test_x.slice(s![16i32..,..]);
-    //more formatting issues
+    // more formatting issues
     let test_y = load_label("t10k-labels.idx1-ubyte",9992,1);
 
-    let ndx : i32= 20;
+    let ndx : i32 = 20;
     let slc = train_x.slice(s![ndx,..]);
     println!("Images: {:?}", train_x);
     println!("Image {}: {:?}",ndx,slc.clone());
     println!("Sum of pixels: {:?}",slc.sum());
     println!("{:?}", train_y);
 
-    //this is a terrible way of doing it I'm aware :hmm:
+    // this is a terrible way of doing it I'm aware :hmm:
     let dim_train_x = train_x.slice(s![..,0i32]).len();
 
     let samples = sample(dim_train_x as i32);
-    let smp = ndarray::Array::from(samples.clone());
+    //let smp = ndarray::Array::from(samples.clone());
     let mut dataset = generate_dataset(train_x.to_owned(),train_y, samples,10);
-    let sample = dataset.pop();
-    println!("Random choices out of {}, {:?}",dim_train_x ,smp);
-    println!("random sample: {:?}", sample.unwrap().0);
+
+    train(my_nn,dataset, 1000, None, None);
+
+    //saves an image to be opened by validator.py which can be used to validate that the labels are correctly matched to the images
+    //let mut file = std::fs::File::create("data.txt").expect("create failed");
+    //sample.0.map(|d| file.write_all((d.to_string() + " ").as_bytes()));
 
 }
 
-fn train(mut net : Net, x : Array2<f32>, y : usize, epochs : i32, batch : Option<i32>, lr : Option<f32>) {
+pub fn train(mut net : Net, mut dataset : Vec<Sample>, epochs : i32, batch : Option<i32>, lr : Option<f32>){
     let lr : f32 = lr.unwrap_or(0.001);
     let batch : i32 = batch.unwrap_or(128);
 
-    //second tuple element of generate_dataset
-    let targets = ndarray::Array2::<f32>::zeros((1,10));
+    // second tuple element of generate_dataset
+    let mut targets : Array2<f32>;
+    let mut guess_onehot : Array2<f32>;
+    let mut accuracies : Vec<f32> = Vec::new();
+    let mut losses : Vec<f32> = Vec::new();
+    let mut next_weights : Vec<Array2<f32>>;
+    let mut next_biases : Vec<Array2<f32>>;
 
     for epoch in 0..epochs {
-        // activate(hidden_layer1.dot(inputs))
-        let forward_prop1 : Array2<f32> = activate_layer(net.weights[0].clone(),x.clone(), &sigmoid);
+        next_weights = Vec::new();
+        next_biases = Vec::new();
+        targets = ndarray::Array2::<f32>::zeros((1,10));
+        guess_onehot = targets.clone();
+        println!("Starting epoch {}",epoch);
+        let sample : Sample = dataset.pop().expect("Not enough samples");
+        let x : Array2<f32> = sample.0.clone();
+        let y : Array2<f32> = sample.1;
+        // activate(hidden_layer1.dot(inputs)) dot product is communicative so switch input and hidden for easy dim-matching
+        let f_prop1 = activate_layer(x.clone(), net.weights[0].clone(),  net.biases[0].clone(), &sigmoid);
+        let forward_prop1 : Array2<f32> = f_prop1.0.clone();
         // activate(hidden_layer2.dot(hidden_layer1))
-        let forward_prop2 : Array2<f32> = activate_layer(net.weights[1].clone(),net.weights[0].clone(), &softmax);
+        println!("{:?}", forward_prop1.clone().shape());
+        let f_prop2 : (Array2<f32>,Array2<f32>) = activate_layer(forward_prop1.clone(), net.weights[1].clone(), net.biases[1].clone(), &softmax);
+        let forward_prop2 : Array2<f32> = f_prop2.0.clone();
+
 
         // 2 * (output - label) /  (output.shape[0] * derive_softmax(hidden_layer2))
-        let mut error : Array2<f32> = 2. * forward_prop2.clone() - targets.clone() / (forward_prop2.clone().shape()[0] as f32*derive_softmax(net.weights[1].clone()));
-        let back_prop2 : Array2<f32> = forward_prop1.clone() * error.clone();
+        println!("out dim: {:?} targets dim: {:?}", forward_prop2.clone().shape(), targets.clone().t().to_owned().shape());
+        let error_ch1 = 2. * forward_prop2.clone() - targets.clone();
+        println!("ch1 {:?}", error_ch1.clone().shape());
+        let error_ch2 = forward_prop2.clone().shape()[0] as f32 * derive_softmax(f_prop2.1.clone());
+        println!("ch2 {:?}", error_ch2.clone().shape());
+        let mut error : Array2<f32> =  error_ch1 / error_ch2;
+        println!("error {:?}", error.clone().shape());
+        let back_prop2 : Array2<f32> = mat_mul(error.clone(),forward_prop1.clone());
+        println!("shapes w1 {:?}, shapes: {:?}", net.weights[1].clone().shape(), error.clone().shape());
+        error = net.weights[1].clone().dot(&error.clone().t()).t().to_owned() * derive_sigmoid(f_prop1.1);
 
-        error = (net.weights[1].clone().dot(&error.clone().t())).t().to_owned() * derive_sigmoid(x.clone().dot(&net.weights[0]));
+        //println!("{:?}, {:?}", x.t(), error.clone());
+        let back_prop1 : Array2<f32> = mat_mul(error.clone(),x.clone());
 
+        println!("finished backprop");
 
-        let back_prop1 : Array2<f32> = &x.t()*error.clone();
+        let category = arg_max(forward_prop2.clone());
+        println!("argmax: {:?}", category);
+        guess_onehot[[0,category.1.clone()]] = 1.;
+        let accuracy = y.clone()[[category.clone().1,0]];
+        accuracies.push(accuracy);
+        //println!("guess onehot: {:?}", guess_onehot.clone());
+        //println!("y onehot: {:?}", y.clone());
+        let loss = mean_squared_error(guess_onehot.clone(),y.clone().t().to_owned()).expect("MSE failed");
+        losses.push(loss);
+        println!("Raw AI guess: {:?}", forward_prop2);
+        println!("AI guess: {}",category.1);
+        println!("Real answer: {}",arg_max(y.clone()).0);
 
+        println!("weights shape : {:?}, back_prop1 shape: {:?}", net.weights[0].clone().shape(),back_prop1.clone().shape());
+        next_weights.push(net.weights[0].clone()-lr*back_prop1.clone().t().to_owned());
+        println!("b1 shape: {:?}, back_prop1 shape: {:?}", net.biases[0].clone().shape(), back_prop1.clone().t().to_owned().shape());
+        next_biases.push(net.biases[0].clone()-lr*back_prop2.t().to_owned());
+        next_weights.push(net.weights[1].clone()-lr*back_prop2.clone().t().to_owned());
+        println!("b2 shape: {:?}, back_prop2 shape: {:?}", net.biases[1].clone().shape(), back_prop2.clone().t().to_owned().shape());
+        next_biases.push(net.biases[1].clone()-lr*back_prop1.t().to_owned());
+        println!("Epoch #{}, loss: {}", epoch, loss);
+        net.weights = next_weights;
+        net.biases = next_biases;
+        //println!("{:?}", net.biases[0].clone());
     }
 
 }
 
 
-//creates a stack (len batch_size) of random integers from range 0..dim
-//used to select an image and label pair for each training function
-fn sample(num : i32) -> Vec<i32>{
+// creates a stack (len batch_size) of random integers from range 0..dim
+// used to select an image and label pair for each training function
+pub fn sample(num : i32) -> Vec<i32>{
     let mut stack : Vec<i32> = (0..num).collect();
     stack.shuffle(&mut rand::thread_rng());
     stack
@@ -104,7 +159,8 @@ fn sample(num : i32) -> Vec<i32>{
 
 
 // takes a stack (Vec<i32>) of stamples from the sample method and creates a stack of (image,label) tuples
-fn generate_dataset(x : Array2<f32>, y : Array2<usize>, mut samples : Vec<i32>, output_layers : usize) -> Vec<Sample> {
+pub fn generate_dataset(x : Array2<f32>, y : Array2<usize>, mut samples : Vec<i32>, output_layers : usize) -> Vec<Sample> {
+    println!("Generating dataset...");
     let mut outp : Vec<Sample> = Vec::new();
     while let Some(sample) = samples.pop() {
         let image = x.slice(s![sample..sample+1,..]).to_owned();
@@ -117,8 +173,21 @@ fn generate_dataset(x : Array2<f32>, y : Array2<usize>, mut samples : Vec<i32>, 
     outp
 }
 
-//creates a random ly initialized matrix with the dimensions of layer2.dot(layer1)
-fn generate_bias(layer1 : Array2<f32>, layer2 : Array2<f32>, min : Option<f32>, max : Option<f32>) -> Array2<f32> {
+//generates a list of biases with the same dimensions as the dot products of
+pub fn generate_bias(dim : Vec<(usize, usize)>) -> Vec<Array2<f32>>{
+    println!("Generating bias...");
+    let mut out = Vec::new();
+    for i in 0..dim.len() {
+        let mut bias = create_layer(1,dim[i].1);
+        bias = rand_layer(0.,1.,bias);
+        //println!("bias: {:?}", bias);
+        out.push(bias);
+    }
+    out
+}
+
+// creates a random ly initialized matrix with the dimensions of layer2.dot(layer1)
+pub fn generate_bias_layer(layer1 : Array2<f32>, layer2 : Array2<f32>, min : Option<f32>, max : Option<f32>) -> Array2<f32> {
     let temp_layer = layer2.dot(&layer1);
     rand_layer(min.unwrap_or(0f32), max.unwrap_or(1f32), temp_layer)
 }
@@ -129,7 +198,7 @@ pub fn load_image(filename : &str, length1 : usize, length2 : usize) -> Array2<f
     //normalize the values from 0-255 to 0-1
     let tmp_f32 : Vec<f32> = tmp_u8.into_iter().map(|d|d as f32 / 255.).collect();
     println!("Number of examples in {}: {}",filename,tmp_f32.len()/length2);
-    let images : Array2<f32> = ndarray::Array::from_shape_vec((length1, length2), tmp_f32).expect("Bad data");
+    let images : Array2<f32> = ndarray::Array::from_shape_vec((length1, length2), tmp_f32).expect("Bad images");
     images
 }
 
@@ -142,15 +211,21 @@ pub fn load_label(filename : &str, length1 : usize, length2 : usize) -> Array2<u
     array_labels
 }
 
-//to-do find a way to store functions as objects so full forward prop can be done
-pub fn activate_layer(weight : Array2<f32>, prev : Array2<f32>, activation : &dyn Fn(Array2<f32>) -> Array2<f32>) -> Array2<f32> {
-    let out = activation(weight.dot(&prev));
-    out
+//to-do find a way to store functions as objects so full forward prop can be done from a single object
+pub fn activate_layer(weight : Array2<f32>, prev : Array2<f32>, bias : Array2<f32>, activation : &dyn Fn(Array2<f32>) -> Array2<f32>) -> (Array2<f32>, Array2<f32>) {
+    println!("activating shapes {:?}, {:?}", weight.clone().shape(),prev.clone().shape());
+    let dt = weight.dot(&prev);
+    println!("dt shape:  {:?}, bias shape: {:?}", dt.shape(), bias.shape());
+    let dt_b = dt + bias;
+    println!("activating...");
+    let out = activation(dt_b.clone());
+    (out, dt_b)
 }
 
 /// dim : A list of the dimensions of the connectiions between each layer
 /// network : A list of the connections between each layer as uninitialized 0's
 pub fn create_network(dim : Vec<(usize,usize)>) -> Vec<Array2<f32>> {
+    println!("Creating network...");
     let mut network = Vec::new();
     for i in 0..dim.len() {
         let layer = create_layer(dim[i].0,dim[i].1);
@@ -179,6 +254,22 @@ pub fn init_rand(x : f32, y : f32, mut net : Net) -> Net{
         net.weights[i] = rand_layer(x,y,net.weights[i].clone());
     }
     net
+}
+
+
+// finds the largest element in an 2D-array and returns the index of it
+pub fn arg_max(arr : Array2<f32>) -> (usize,usize) {
+    let mut max_indx : (usize,usize) = (0, 0);
+    let mut max : f32 = arr[[0, 0]];
+    for i in 0..arr.shape()[0]{
+        for j in  0..arr.shape()[1] {
+            if arr[[i,j]] > max {
+                max = arr[[i,j]];
+                max_indx = (i,j);
+            }
+        }
+    }
+    max_indx
 }
 
 // replaces all values in a 2D matrix with a random number between x and y (inclusive)
@@ -212,7 +303,7 @@ pub fn scalar_sub(layer : Array2<f32>, val : f32) -> Array2<f32> {
     let mut out = layer.clone();
     for i in 0..out.shape()[0] {
         for j in 0..out.shape()[1] {
-            out[[i,j]] = out[[i,j]] - val;
+            out[[i,j]] -= val;
         }
     }
     out
@@ -222,6 +313,24 @@ pub fn scalar_sub(layer : Array2<f32>, val : f32) -> Array2<f32> {
 pub fn scalar_add(layer: Array2<f32>, val : f32) -> Array2<f32>{
     let out = scalar_sub(layer,-1. * val);
     out
+}
+
+pub fn power_of(arr : Array2<f32>, val : i32) -> Array2<f32>{
+    arr.mapv(|x| x.powi(val))
+}
+
+pub fn mat_mul(arr1 : Array2<f32>, arr2 : Array2<f32>) -> Array2<f32>{
+    let m1 = arr1.clone().shape()[0];
+    let m2 = arr2.clone().shape()[1];
+    let mut outp : Array2<f32> = create_layer(m1,m2);
+    for i in 0..m1 {
+        for j in 0..m2 {
+            for k in 0..arr2.clone().shape()[0] {
+                outp[[i, j]] = outp[[i, j]] + (arr1[[i,k]] * arr2[[k,j]]);
+            }
+        }
+    }
+    outp
 }
 
 // creates a matrix of probabilities summing to 1 (or at least close enough :^)
@@ -237,6 +346,11 @@ pub fn softmax(layer : Array2<f32>) -> Array2<f32> {
 pub fn derive_softmax(layer : Array2<f32>) -> Array2<f32> {
     let sf = softmax(layer);
     sf.clone() * scalar_sub(sf,1.)
+}
+
+pub fn mean_squared_error(x : Array2<f32>, y : Array2<f32>) -> Option<f32>{
+    let loss = power_of(x-y,2).mean();
+    loss
 }
 
 // take each value in an array and scales it into a number between 0 and 1
