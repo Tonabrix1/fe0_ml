@@ -51,13 +51,6 @@ fn main() {
     // more formatting issues
     let test_y = load_label("t10k-labels.idx1-ubyte",9992,1);
 
-    let ndx : i32 = 20;
-    let slc = train_x.slice(s![ndx,..]);
-    println!("Images: {:?}", train_x);
-    println!("Image {}: {:?}",ndx,slc.clone());
-    println!("Sum of pixels: {:?}",slc.sum());
-    println!("{:?}", train_y);
-
     // this is a terrible way of doing it I'm aware :hmm:
     let dim_train_x = train_x.slice(s![..,0i32]).len();
 
@@ -94,10 +87,10 @@ pub fn train(mut net : Net, mut dataset : Vec<Sample>, epochs : i32, batch : Opt
         let sample : Sample = dataset.pop().expect("Not enough samples");
         let x : Array2<f32> = sample.0.clone();
         let y : Array2<f32> = sample.1;
-        // activate(hidden_layer1.dot(inputs)) dot product is communicative so switch input and hidden for easy dim-matching
+        // activate(inputs.dot(hidden_layer1)) dot product is communicative so switch input and hidden for easy dim-matching
         let f_prop1 = activate_layer(x.clone(), net.weights[0].clone(),  net.biases[0].clone(), &sigmoid);
         let forward_prop1 : Array2<f32> = f_prop1.0.clone();
-        // activate(hidden_layer2.dot(hidden_layer1))
+        // activate(activation1.dot(hidden_layer2))
         println!("{:?}", forward_prop1.clone().shape());
         let f_prop2 : (Array2<f32>,Array2<f32>) = activate_layer(forward_prop1.clone(), net.weights[1].clone(), net.biases[1].clone(), &softmax);
         let forward_prop2 : Array2<f32> = f_prop2.0.clone();
@@ -106,11 +99,8 @@ pub fn train(mut net : Net, mut dataset : Vec<Sample>, epochs : i32, batch : Opt
         // 2 * (output - label) /  (output.shape[0] * derive_softmax(hidden_layer2))
         println!("out dim: {:?} targets dim: {:?}", forward_prop2.clone().shape(), targets.clone().t().to_owned().shape());
         let error_ch1 = 2. * forward_prop2.clone() - targets.clone();
-        println!("ch1 {:?}", error_ch1.clone().shape());
         let error_ch2 = forward_prop2.clone().shape()[0] as f32 * derive_softmax(f_prop2.1.clone());
-        println!("ch2 {:?}", error_ch2.clone().shape());
         let mut error : Array2<f32> =  error_ch1 / error_ch2;
-        println!("error {:?}", error.clone().shape());
         let back_prop2 : Array2<f32> = mat_mul(error.clone(),forward_prop1.clone());
         println!("shapes w1 {:?}, shapes: {:?}", net.weights[1].clone().shape(), error.clone().shape());
         error = net.weights[1].clone().dot(&error.clone().t()).t().to_owned() * derive_sigmoid(f_prop1.1);
@@ -125,9 +115,9 @@ pub fn train(mut net : Net, mut dataset : Vec<Sample>, epochs : i32, batch : Opt
         guess_onehot[[0,category.1.clone()]] = 1.;
         let accuracy = y.clone()[[category.clone().1,0]];
         accuracies.push(accuracy);
-        //println!("guess onehot: {:?}", guess_onehot.clone());
-        //println!("y onehot: {:?}", y.clone());
-        let loss = mean_squared_error(guess_onehot.clone(),y.clone().t().to_owned()).expect("MSE failed");
+        println!("guess onehot: {:?}", guess_onehot.clone());
+        println!("y onehot: {:?}", y.clone());
+        let loss = mean_squared_error(guess_onehot.clone(),y.clone()).expect("MSE failed");
         losses.push(loss);
         println!("Raw AI guess: {:?}", forward_prop2);
         println!("AI guess: {}",category.1);
@@ -135,11 +125,11 @@ pub fn train(mut net : Net, mut dataset : Vec<Sample>, epochs : i32, batch : Opt
 
         println!("weights shape : {:?}, back_prop1 shape: {:?}", net.weights[0].clone().shape(),back_prop1.clone().shape());
         next_weights.push(net.weights[0].clone()-lr*back_prop1.clone().t().to_owned());
-        println!("b1 shape: {:?}, back_prop1 shape: {:?}", net.biases[0].clone().shape(), back_prop1.clone().t().to_owned().shape());
-        next_biases.push(net.biases[0].clone()-lr*back_prop2.t().to_owned());
+        println!("b1 shape: {:?}, back_prop2 shape: {:?}", net.biases[0].clone().shape(), back_prop2.clone().t().to_owned().shape());
+        next_biases.push(net.biases[0].clone().t().to_owned()-lr*back_prop2.clone());
         next_weights.push(net.weights[1].clone()-lr*back_prop2.clone().t().to_owned());
-        println!("b2 shape: {:?}, back_prop2 shape: {:?}", net.biases[1].clone().shape(), back_prop2.clone().t().to_owned().shape());
-        next_biases.push(net.biases[1].clone()-lr*back_prop1.t().to_owned());
+        println!("b2 shape: {:?}, back_prop1 shape: {:?}", net.biases[1].clone().shape(), back_prop1.clone().t().to_owned().shape());
+        next_biases.push(net.biases[1].clone().t().to_owned()-lr*back_prop1);
         println!("Epoch #{}, loss: {}", epoch, loss);
         net.weights = next_weights;
         net.biases = next_biases;
