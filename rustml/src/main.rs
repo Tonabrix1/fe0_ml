@@ -1,4 +1,3 @@
-#[allow(non_snake_case)]
 use ndarray::Array2;
 use rand::Rng;
 use mnist_read;
@@ -10,6 +9,7 @@ use rand::seq::SliceRandom;
 pub struct Net {
     pub weights : Vec<Array2<f32>>,
     pub biases : Vec<Array2<f32>>,
+    pub activations : Vec<Box<dyn Fn(Array2<f32>) -> Array2<f32>>>,
 }
 
 pub struct Sample (Array2<f32>,Array2<f32>);
@@ -24,7 +24,7 @@ fn main() {
     let dim = vec![(input_layer, hidden_layer1),(hidden_layer1, output_layer)];
     // 28*28x128x10 neural network is created
     // it is stored as [layer1_connections,layer2_ connections,...]
-    let mut my_nn = Net { weights : create_network(dim.clone()), biases : generate_bias(dim)};
+    let mut my_nn = Net { weights : create_network(dim.clone()), biases : generate_bias(dim), activations : vec![Box::new(&ReLU), Box::new(&ReLU), Box::new(&softmax)]};
     my_nn = init_rand(-1.,1.,my_nn);
 
     //let mut x = my_nn.weights[0].clone();
@@ -84,9 +84,11 @@ pub fn train(mut net : Net, mut dataset : Vec<Sample>, epochs : i32, batch : Opt
         targets = ndarray::Array2::<f32>::zeros((1,10));
         guess_onehot = targets.clone();
         println!("Starting epoch {}",epoch);
+        // new sample
         let sample : Sample = dataset.pop().expect("Not enough samples");
         let x : Array2<f32> = sample.0.clone();
         let y : Array2<f32> = sample.1;
+<<<<<<< HEAD
         // activate(inputs.dot(hidden_layer1)) dot product is communicative so switch input and hidden for easy dim-matching
         let f_prop1 = activate_layer(x.clone(), net.weights[0].clone(),  net.biases[0].clone(), &sigmoid);
         let forward_prop1 : Array2<f32> = f_prop1.0.clone();
@@ -111,6 +113,14 @@ pub fn train(mut net : Net, mut dataset : Vec<Sample>, epochs : i32, batch : Opt
         println!("finished backprop");
 
         let category = arg_max(forward_prop2.clone());
+=======
+
+        let (fp_acts, fp_dots, error) = forward_propagate(net, x, y);
+        let out = fp_acts.last().expect("empty activations vector").clone();
+
+
+        let category = arg_max(out.clone());
+>>>>>>> 192a8d6a14731ecd0f4431de64df441fde07ff35
         println!("argmax: {:?}", category);
         guess_onehot[[0,category.1.clone()]] = 1.;
         let accuracy = y.clone()[[category.clone().1,0]];
@@ -137,6 +147,50 @@ pub fn train(mut net : Net, mut dataset : Vec<Sample>, epochs : i32, batch : Opt
     }
 
 }
+
+
+// returns activated weights, dots, error
+pub fn forward_propagate(net : Net, x : Array2<f32>, y : Array2<f32>) -> (Vec<Array2<f32>>,Vec<Array2<f32>>, Array2<f32>){
+    // initializing variables
+    let mut activated : Vec<Array2<f32>> = Vec::new();
+    let mut dots : Vec<Array2<f32>> = Vec::new();
+    let mut curr_a;
+    let mut curr_b;
+    // could be cleaner if I inserted x into the first weights vector but this is simpler overall
+    for i in 0..net.weights.len() {
+        curr_b = net.weights[i].clone();
+        if i <= 0 { curr_a = x.clone(); }
+        else { curr_a = activated[i-1].clone(); }
+        assert_eq!(curr_a.clone().shape()[1],curr_b.clone().shape()[0]);
+        let (act, dot) = activate_layer(curr_a.clone(), curr_b.clone(),  net.biases[i].clone(), &*net.activations[i]);
+        activated.push(act);
+        dots.push(dot);
+    }
+    let error = activated.last().expect("activated is empty").clone() - y.clone();
+    (activated, dots, error)
+}
+
+
+// preforms back propagation
+pub fn back_propagate(mut net : Net, y : Array2<f32>, error : Array2<f32>, batch_size : Option<i32>, lr : Option<f32>, lr_gamma : Option<f32>) {
+    // unwrapping optional arguements
+    let batch_size = batch_size.unwrap_or(128);
+    // learning rate, multiplied by true weight updates
+    let lr = lr.unwrap_or(0.001);
+    // learning rate, multiplied by true bias updates
+    let lr_gamma = lr_gamma.unwrap_or(*&lr);
+    // derivative of cost
+    let d_cost = (1./batch_size as f32)*error;
+    // initializing variables
+    let mut d_weights : Vec<Array2<f32>> = Vec::new();
+    let mut d_biases : Vec<Array2<f32>> = Vec::new();
+    let mut curr_dw;
+    let mut curr_db;
+    for i in 0..net.weights.len() {
+        if i <= 0 { curr_dw = ; }
+    }
+}
+
 
 
 // creates a stack (len batch_size) of random integers from range 0..dim
@@ -229,6 +283,7 @@ pub fn create_network(dim : Vec<(usize,usize)>) -> Vec<Array2<f32>> {
 // len2D : layer.len() == len2D
 // len1D : layer[n].len() == len1D
 // out : a 2D array (ndarray::Array2) of the connections between matrix-a and matrix-b
+#[allow(non_snake_case)]
 pub fn create_layer(len_2D : usize, len_1D : usize) -> Array2<f32> {
     //initializes an array of 0's: len_2D=1; len_1D=3
     // [[0, 0, 0]]
@@ -359,4 +414,25 @@ pub fn derive_sigmoid(layer : Array2<f32>) -> Array2<f32> {
     //e^-x/((e^-1)+1)^2 = e^-x/((e^-1)+1)*((e^-1)+1)
     let out = ex/(denom.clone()*denom);
     out
+}
+
+#[allow(non_snake_case)]
+pub fn ReLU(mut x : Array2<f32>) -> Array2<f32>{
+    for i in 0..x.clone().shape()[0] {
+        for j in 0..x.clone().shape()[1] {
+            if x[[i,j]] >= 1. { x[[i,j]] = 1.; } else { x[[i,j]] = 0.; }
+        }
+    }
+    x
+}
+
+#[allow(non_snake_case)]
+pub fn derive_ReLU(mut x : Array2<f32>) -> Array2<f32> {
+    // technically it's undefined at x[[i,j]] == 0
+    for i in 0..x.clone().shape()[0] {
+        for j in 0..x.clone().shape()[1] {
+            if x[[i,j]] > 0. { x[[i,j]] = 1.; } else { x[[i,j]] = 0.; }
+        }
+    }
+    x
 }
