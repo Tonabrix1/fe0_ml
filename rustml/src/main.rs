@@ -97,25 +97,10 @@ pub fn train(mut net : Net, mut dataset : Vec<Sample>, epochs : i32, batch : Opt
         let y : Array2<f32> = sample.1;
 
         let (fp_acts, fp_dots, error) = forward_propagate(net, x, y);
+        let out = fp_acts.last().expect("empty activations vector").clone();
 
-        // 2 * (output - label) /  (output.shape[0] * derive_softmax(hidden_layer2))
-        println!("out dim: {:?} targets dim: {:?}", forward_prop2.clone().shape(), targets.clone().t().to_owned().shape());
-        let error_ch1 = 2. * forward_prop2.clone() - targets.clone();
-        println!("ch1 {:?}", error_ch1.clone().shape());
-        let error_ch2 = forward_prop2.clone().shape()[0] as f32 * derive_softmax(f_prop2.1.clone());
-        println!("ch2 {:?}", error_ch2.clone().shape());
-        let mut error : Array2<f32> =  error_ch1 / error_ch2;
-        println!("error {:?}", error.clone().shape());
-        let back_prop2 : Array2<f32> = mat_mul(error.clone(),forward_prop1.clone());
-        println!("shapes w1 {:?}, shapes: {:?}", net.weights[1].clone().shape(), error.clone().shape());
-        error = net.weights[1].clone().dot(&error.clone().t()).t().to_owned() * derive_sigmoid(f_prop1.1);
 
-        //println!("{:?}, {:?}", x.t(), error.clone());
-        let back_prop1 : Array2<f32> = mat_mul(error.clone(),x.clone());
-
-        println!("finished backprop");
-
-        let category = arg_max(fp_acts.last().expect("empty activations vector").clone());
+        let category = arg_max(out.clone());
         println!("argmax: {:?}", category);
         guess_onehot[[0,category.1.clone()]] = 1.;
         let accuracy = y.clone()[[category.clone().1,0]];
@@ -146,29 +131,44 @@ pub fn train(mut net : Net, mut dataset : Vec<Sample>, epochs : i32, batch : Opt
 
 // returns activated weights, dots, error
 pub fn forward_propagate(net : Net, x : Array2<f32>, y : Array2<f32>) -> (Vec<Array2<f32>>,Vec<Array2<f32>>, Array2<f32>){
+    // initializing variables
     let mut activated : Vec<Array2<f32>> = Vec::new();
     let mut dots : Vec<Array2<f32>> = Vec::new();
     let mut curr_a;
     let mut curr_b;
     // could be cleaner if I inserted x into the first weights vector but this is simpler overall
-    for i in 0..x.clone().len() {
+    for i in 0..net.weights.len() {
         curr_b = net.weights[i].clone();
         if i <= 0 { curr_a = x.clone(); }
-        else { curr_a : Array2<f32> = activated[i-1].clone(); }
+        else { curr_a = activated[i-1].clone(); }
         assert_eq!(curr_a.clone().shape()[1],curr_b.clone().shape()[0]);
         let (act, dot) = activate_layer(curr_a.clone(), curr_b.clone(),  net.biases[i].clone(), &*net.activations[i]);
-        activated.push(act)
-        dots.push(dot)
+        activated.push(act);
+        dots.push(dot);
     }
     let error = activated.last().expect("activated is empty").clone() - y.clone();
     (activated, dots, error)
 }
 
 
-pub fn back_propagate(mut net : Net, y : Array2<f32>, error : Array2<f32>, batch_size : i32) {
-    let d_cost = (1/batch_size)*error;
-    let d_weights = Vec::new();
-    let d_biases = Vec::new();
+// preforms back propagation
+pub fn back_propagate(mut net : Net, y : Array2<f32>, error : Array2<f32>, batch_size : Option<i32>, lr : Option<f32>, lr_gamma : Option<f32>) {
+    // unwrapping optional arguements
+    let batch_size = batch_size.unwrap_or(128);
+    // learning rate, multiplied by true weight updates
+    let lr = lr.unwrap_or(0.001);
+    // learning rate, multiplied by true bias updates
+    let lr_gamma = lr_gamma.unwrap_or(*&lr);
+    // derivative of cost
+    let d_cost = (1./batch_size as f32)*error;
+    // initializing variables
+    let mut d_weights : Vec<Array2<f32>> = Vec::new();
+    let mut d_biases : Vec<Array2<f32>> = Vec::new();
+    let mut curr_dw;
+    let mut curr_db;
+    for i in 0..net.weights.len() {
+        if i <= 0 { curr_dw = ; }
+    }
 }
 
 
