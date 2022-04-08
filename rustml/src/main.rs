@@ -10,6 +10,7 @@ pub struct Net {
     pub weights : Vec<Array2<f32>>,
     pub biases : Vec<Array2<f32>>,
     pub activations : Vec<Box<dyn Fn(Array2<f32>) -> Array2<f32>>>,
+    pub derivative_activations : Vec<Box<dyn Fn(Array2<f32>) -> Array2<f32>>>,
 }
 
 pub struct Sample (Array2<f32>,Array2<f32>);
@@ -24,7 +25,7 @@ fn main() {
     let dim = vec![(input_layer, hidden_layer1),(hidden_layer1, output_layer)];
     // 28*28x128x10 neural network is created
     // it is stored as [layer1_connections,layer2_ connections,...]
-    let mut my_nn = Net { weights : create_network(dim.clone()), biases : generate_bias(dim), activations : vec![Box::new(&ReLU), Box::new(&ReLU), Box::new(&softmax)]};
+    let mut my_nn = Net { weights : create_network(dim.clone()), biases : generate_bias(dim), activations : vec![Box::new(&ReLU), Box::new(&ReLU), Box::new(&softmax)], derivative_activations : vec![Box::new(&derive_ReLU),Box::new(&derive_ReLU),Box::new(&derive_softmax)]};
     my_nn = init_rand(-1.,1.,my_nn);
 
     //let mut x = my_nn.weights[0].clone();
@@ -88,39 +89,12 @@ pub fn train(mut net : Net, mut dataset : Vec<Sample>, epochs : i32, batch : Opt
         let sample : Sample = dataset.pop().expect("Not enough samples");
         let x : Array2<f32> = sample.0.clone();
         let y : Array2<f32> = sample.1;
-<<<<<<< HEAD
-        // activate(inputs.dot(hidden_layer1)) dot product is communicative so switch input and hidden for easy dim-matching
-        let f_prop1 = activate_layer(x.clone(), net.weights[0].clone(),  net.biases[0].clone(), &sigmoid);
-        let forward_prop1 : Array2<f32> = f_prop1.0.clone();
-        // activate(activation1.dot(hidden_layer2))
-        println!("{:?}", forward_prop1.clone().shape());
-        let f_prop2 : (Array2<f32>,Array2<f32>) = activate_layer(forward_prop1.clone(), net.weights[1].clone(), net.biases[1].clone(), &softmax);
-        let forward_prop2 : Array2<f32> = f_prop2.0.clone();
-
-
-        // 2 * (output - label) /  (output.shape[0] * derive_softmax(hidden_layer2))
-        println!("out dim: {:?} targets dim: {:?}", forward_prop2.clone().shape(), targets.clone().t().to_owned().shape());
-        let error_ch1 = 2. * forward_prop2.clone() - targets.clone();
-        let error_ch2 = forward_prop2.clone().shape()[0] as f32 * derive_softmax(f_prop2.1.clone());
-        let mut error : Array2<f32> =  error_ch1 / error_ch2;
-        let back_prop2 : Array2<f32> = mat_mul(error.clone(),forward_prop1.clone());
-        println!("shapes w1 {:?}, shapes: {:?}", net.weights[1].clone().shape(), error.clone().shape());
-        error = net.weights[1].clone().dot(&error.clone().t()).t().to_owned() * derive_sigmoid(f_prop1.1);
-
-        //println!("{:?}, {:?}", x.t(), error.clone());
-        let back_prop1 : Array2<f32> = mat_mul(error.clone(),x.clone());
-
-        println!("finished backprop");
-
-        let category = arg_max(forward_prop2.clone());
-=======
 
         let (fp_acts, fp_dots, error) = forward_propagate(net, x, y);
-        let out = fp_acts.last().expect("empty activations vector").clone();
+        let out = *&fp_acts.last().expect("empty activations vector").clone();
 
 
         let category = arg_max(out.clone());
->>>>>>> 192a8d6a14731ecd0f4431de64df441fde07ff35
         println!("argmax: {:?}", category);
         guess_onehot[[0,category.1.clone()]] = 1.;
         let accuracy = y.clone()[[category.clone().1,0]];
@@ -129,21 +103,7 @@ pub fn train(mut net : Net, mut dataset : Vec<Sample>, epochs : i32, batch : Opt
         println!("y onehot: {:?}", y.clone());
         let loss = mean_squared_error(guess_onehot.clone(),y.clone()).expect("MSE failed");
         losses.push(loss);
-        println!("Raw AI guess: {:?}", forward_prop2);
-        println!("AI guess: {}",category.1);
-        println!("Real answer: {}",arg_max(y.clone()).0);
 
-        println!("weights shape : {:?}, back_prop1 shape: {:?}", net.weights[0].clone().shape(),back_prop1.clone().shape());
-        next_weights.push(net.weights[0].clone()-lr*back_prop1.clone().t().to_owned());
-        println!("b1 shape: {:?}, back_prop2 shape: {:?}", net.biases[0].clone().shape(), back_prop2.clone().t().to_owned().shape());
-        next_biases.push(net.biases[0].clone().t().to_owned()-lr*back_prop2.clone());
-        next_weights.push(net.weights[1].clone()-lr*back_prop2.clone().t().to_owned());
-        println!("b2 shape: {:?}, back_prop1 shape: {:?}", net.biases[1].clone().shape(), back_prop1.clone().t().to_owned().shape());
-        next_biases.push(net.biases[1].clone().t().to_owned()-lr*back_prop1);
-        println!("Epoch #{}, loss: {}", epoch, loss);
-        net.weights = next_weights;
-        net.biases = next_biases;
-        //println!("{:?}", net.biases[0].clone());
     }
 
 }
@@ -171,8 +131,8 @@ pub fn forward_propagate(net : Net, x : Array2<f32>, y : Array2<f32>) -> (Vec<Ar
 }
 
 
-// preforms back propagation
-pub fn back_propagate(mut net : Net, y : Array2<f32>, error : Array2<f32>, batch_size : Option<i32>, lr : Option<f32>, lr_gamma : Option<f32>) {
+// preforms back propagation via the gradient descent algorithm
+pub fn back_propagate(mut net : Net, y : Array2<f32>, error : Array2<f32>, activated : Vec<Array2<f32>>, dots : Vec<Array2<f32>>, batch_size : Option<i32>, lr : Option<f32>, lr_gamma : Option<f32>) {
     // unwrapping optional arguements
     let batch_size = batch_size.unwrap_or(128);
     // learning rate, multiplied by true weight updates
@@ -184,10 +144,16 @@ pub fn back_propagate(mut net : Net, y : Array2<f32>, error : Array2<f32>, batch
     // initializing variables
     let mut d_weights : Vec<Array2<f32>> = Vec::new();
     let mut d_biases : Vec<Array2<f32>> = Vec::new();
-    let mut curr_dw;
-    let mut curr_db;
-    for i in 0..net.weights.len() {
-        if i <= 0 { curr_dw = ; }
+    let mut curr_dw : Vec<Array2<f32>> = Vec::new();
+    let mut curr_db : Vec<Array2<f32>> = Vec::new();
+    //preforms the chain rule on activated output to calculate gradient descent
+    let cost : f32 = mean_squared_error(activated[0].clone(), y.clone()).expect("Coudldn't get loss");
+    for i in activated.clone().len()..0 {
+        // f(x) = Wx . Wx-1 + b
+        // g(x) = activation(x)
+        // g'(x) = derivative_activation(x)
+        // 'h(x) = g'(f(x))*f'(x)
+        net.derivative_activations[i](activated[i].clone()) * 1.;
     }
 }
 
@@ -405,33 +371,61 @@ pub fn sigmoid(layer : Array2<f32>) -> Array2<f32> {
     out
 }
 
-//derivative of the sigmoid function
+// derivative of the sigmoid function
 pub fn derive_sigmoid(layer : Array2<f32>) -> Array2<f32> {
-    //e^-x
+    // e^-x
     let ex = exp_layer(-1.*layer);
-    //(e^-x)+1
+    // (e^-x)+1
     let denom = scalar_add(ex.clone(),1.);
-    //e^-x/((e^-1)+1)^2 = e^-x/((e^-1)+1)*((e^-1)+1)
+    // e^-x/((e^-1)+1)^2 = e^-x/((e^-1)+1)*((e^-1)+1)
     let out = ex/(denom.clone()*denom);
     out
 }
 
+// rectified linear unit activation
 #[allow(non_snake_case)]
 pub fn ReLU(mut x : Array2<f32>) -> Array2<f32>{
     for i in 0..x.clone().shape()[0] {
         for j in 0..x.clone().shape()[1] {
-            if x[[i,j]] >= 1. { x[[i,j]] = 1.; } else { x[[i,j]] = 0.; }
+            if x[[i,j]] >= 1. { x[[i,j]] = x[[i,j]]; } else { x[[i,j]] = 0.; }
         }
     }
     x
 }
 
+
+// derivative of rectified linear unit activation
 #[allow(non_snake_case)]
 pub fn derive_ReLU(mut x : Array2<f32>) -> Array2<f32> {
     // technically it's undefined at x[[i,j]] == 0
     for i in 0..x.clone().shape()[0] {
         for j in 0..x.clone().shape()[1] {
             if x[[i,j]] > 0. { x[[i,j]] = 1.; } else { x[[i,j]] = 0.; }
+        }
+    }
+    x
+}
+
+
+// leaky rectified linear unit, helps to avoid vanishing gradient issues
+#[allow(non_snake_case)]
+pub fn leaky_ReLU(mut x : Array2<f32>) -> Array2<f32>{
+    for i in 0..x.clone().shape()[0] {
+        for j in 0..x.clone().shape()[1] {
+            if x[[i,j]] >= 1. { x[[i,j]] = x[[i,j]]; } else { x[[i,j]] = x[[i,j]]*0.01; }
+        }
+    }
+    x
+}
+
+
+// derivative of leaky rectified linear unit
+#[allow(non_snake_case)]
+pub fn derive_leaky_ReLU(mut x : Array2<f32>) -> Array2<f32> {
+    // technically it's undefined at x[[i,j]] == 0
+    for i in 0..x.clone().shape()[0] {
+        for j in 0..x.clone().shape()[1] {
+            if x[[i,j]] > 0. { x[[i,j]] = 1.; } else { x[[i,j]] = 0.01; }
         }
     }
     x
