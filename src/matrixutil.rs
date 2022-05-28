@@ -38,7 +38,8 @@ pub fn rand_gaussian(mut layer: Array2<f32>, mean: f32, std: f32) -> Array2<f32>
 }
 
 // xavier glorot's initialization function, used for tanh and sigmoid activations
-// num_nodes : the number of input nodes (weights matrix.shape[1])
+// num_nodes : the number of input nodes (weights matrix.shape[1])]
+// uses usize so you can directly pass .shape()[0] to it
 pub fn init_xavier(layer: Array2<f32>, num_nodes: usize) -> Array2<f32> {
     let upper: f32 = 1. / (num_nodes as f32).sqrt();
     let lower: f32 = -1. / (num_nodes as f32).sqrt();
