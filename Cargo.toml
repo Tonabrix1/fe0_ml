@@ -1,5 +1,5 @@
 [package]
-name = "rustml"
+name = "fe0_ml"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,5 +7,6 @@ edition = "2021"
 
 [dependencies]
 rand = "*"
+rand_distr = "*"
 ndarray = "*"
 mnist_read = "*"
