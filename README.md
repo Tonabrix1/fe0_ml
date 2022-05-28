@@ -1,2 +1,4 @@
 # fe0_ml
-Homemade machine learning library in rust
+
+Home-brew machine learning library for rust
+(currently undergoing a full rewrite)
