@@ -79,13 +79,13 @@ pub fn scalar_sub(mut layer: Array2<f32>, val: f32) -> Array2<f32> {
     layer
 }
 
-// calls scalar_sub and multiplies val by -1.0
+// adds val to each value in an array
 pub fn scalar_add(mut layer: Array2<f32>, val: f32) -> Array2<f32> {
     layer.mapv_inplace(|x| x + val);
     layer
 }
 
-// replaces each value in a 2D array with it's reciprocal (1/value)
+// replaces each value in a 2D array with its reciprocal (1/value)
 pub fn scalar_reciprocal(mut layer: Array2<f32>) -> Array2<f32> {
     layer.mapv_inplace(|x| 1. / x);
     layer
