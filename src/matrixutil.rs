@@ -10,6 +10,7 @@ pub fn create_layer(dim1: usize, dim2: usize) -> Array2<f32> {
     out
 }
 
+//this is a deprecated method just awaiting a rewrite
 pub fn generate_bias_layer(
     layer1: Array2<f32>,
     layer2: Array2<f32>,
