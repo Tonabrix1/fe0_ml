@@ -1,11 +1,14 @@
+mod activations;
+mod layers;
 mod matrixutil;
 mod netutil;
+use crate::activations::{Activation, LeakyReLU, ReLU, Sigmoid, Softmax, ELU, GELU, SELU};
+use crate::layers::{Dense, Layer};
 use crate::matrixutil::{create_layer, rand_layer};
-use crate::netutil::{Activation, Layer, LeakyReLU, ReLU, Sigmoid, Softmax, ELU, GELU, SELU};
 
 fn main() {
-    let l1 = Layer::new((256, 256), GELU.new(), None);
-    println!("{:?}", l1.weights);
-    let outp = l1.activation.activate(l1.weights);
-    println!("{:?}", outp);
+    let mut l1 = Dense::new((256, 256), Softmax.new(), None);
+    println!("{:?}", l1.get_weights());
+    l1.activate_mut();
+    println!("{:?}", l1.get_weights().sum())
 }
