@@ -1,23 +1,29 @@
-use crate::matrixutil::{
-    create_layer, exp_layer, rand_layer, scalar_add, scalar_reciprocal, scalar_sub,
-};
 use ndarray::Array2;
 use std::f32::consts::PI;
+use crate::matrixutil::{
+    create_layer, exp_layer, rand_layer, scalar_add, scalar_reciprocal,
+    scalar_sub,
+};
 
 // trait used to implement activation and derivative functions for each activation function
 pub trait Activation {
     fn new(&self) -> Box<dyn Activation>;
     fn activate(&self, layer: Array2<f32>) -> Array2<f32>;
+    // I know this technically isn't correct grammatically but I like it for homogeneity
     fn derivate(&self, layer: Array2<f32>) -> Array2<f32>;
+    // only available for activation functions involving and alpha value
     fn activate_a(&self, layer: Array2<f32>, a: f32) -> Array2<f32> {
         panic!("THIS IS AN UNIMPLEMENTED METHOD...");
     }
+    // only available for activation functions involving and alpha value
     fn derivate_a(&self, layer: Array2<f32>, a: f32) -> Array2<f32> {
         panic!("THIS IS AN UNIMPLEMENTED METHOD...");
     }
+    // only available for activation functions involving and alpha and lambda values
     fn activate_al(&self, layer: Array2<f32>, a: f32, l: f32) -> Array2<f32> {
         panic!("THIS IS AN UNIMPLEMENTED METHOD...");
     }
+    // only available for activation functions involving and alpha and lambda values
     fn derivate_al(&self, layer: Array2<f32>, a: f32, l: f32) -> Array2<f32> {
         panic!("THIS IS AN UNIMPLEMENTED METHOD...");
     }
