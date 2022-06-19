@@ -2,17 +2,18 @@ mod activations;
 mod layers;
 mod matrixutil;
 mod netutil;
-use crate::activations::{Activation, LeakyReLU, ReLU, Sigmoid, Softmax, ELU, GELU, SELU};
+use crate::activations::{Activation, LeakyReLU};
 use crate::layers::{Dense, Layer};
-use crate::matrixutil::{create_layer, rand_layer};
-use crate::netutil::{Sequential};
+use crate::matrixutil::init_rand;
+use crate::netutil::{Sequential, Net};
 
 fn main() {
     let mut model = Sequential::new();
-    model.add(Box::new(Dense::new((1048, 1048), Softmax.new(), None)));
-    let mut l1 = Dense::new((2096, 2096), Softmax.new(), None);
+    model.add(Dense::new(10, 20, LeakyReLU.new(), Some("glorot")));
+
+    let mut l1 = &mut model.layers[0];
     println!("initalized weights:\n{:?}", l1.get_weights());
-    l1.activate_mut();
-    println!("after softmax:\n{:?}", l1.get_weights());
-    println!("sum of confidence matrix (should be ~1.0): {:?}", l1.get_weights().sum())
+
+    l1.forward_propagate(&init_rand(20,1));
+    println!("weights after forward prop: {:?}", l1.get_weights())
 }

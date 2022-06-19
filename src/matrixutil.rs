@@ -37,19 +37,26 @@ pub fn rand_gaussian(mut layer: Array2<f32>, mean: f32, std: f32) -> Array2<f32>
     layer
 }
 
+//simply creates a layer and initializes each value to a number between 1 and -1
+pub fn init_rand(dim1: usize, dim2: usize) -> Array2<f32> {
+    rand_layer(create_layer(dim1, dim2), -1., 1.)
+}
+
 // xavier glorot's initialization function, used for tanh and sigmoid activations
 // num_nodes : the number of input nodes (weights matrix.shape[1])]
 // uses usize so you can directly pass .shape()[0] to it
-pub fn init_xavier(layer: Array2<f32>, num_nodes: usize) -> Array2<f32> {
-    let upper: f32 = 1. / (num_nodes as f32).sqrt();
-    let lower: f32 = -1. / (num_nodes as f32).sqrt();
-    scalar_mult(scalar_add(rand_layer(layer, 0., 1.), lower), upper - lower)
+pub fn init_xavier(dim1: usize, dim2: usize) -> Array2<f32> {
+    let mut layer = rand_layer(create_layer(dim1, dim2), 0., 1.);
+    let upper: f32 = 1. / (dim1 as f32).sqrt();
+    let lower: f32 = -1. / (dim1 as f32).sqrt();
+    scalar_mult(scalar_add(layer, lower), upper - lower)
 }
 
 // kaiming he's initialization function, used for ReLU activation
 // num_nodes : the number of input nodes (weights matrix.shape[1])
-pub fn init_he(mut layer: Array2<f32>, num_nodes: usize) -> Array2<f32> {
-    let std: f32 = (2. / (num_nodes as f32)).sqrt();
+pub fn init_he(dim1: usize, dim2: usize) -> Array2<f32> {
+    let mut layer = rand_layer(create_layer(dim1, dim2), 0., 1.);
+    let std: f32 = (2. / (dim1 as f32)).sqrt();
     scalar_mult(rand_gaussian(layer, 0., 1.), std)
 }
 

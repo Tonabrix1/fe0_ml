@@ -1,28 +1,25 @@
 use ndarray::Array2;
 use crate::activations::Activation;
 use crate::layers::Layer;
+use crate::matrixutil::{create_layer};
+
+pub trait Net {
+    fn add(&mut self, layer: Box<dyn Layer>);
+}
 
 // main struct that holds a reference to the layers and biases
 // just starting with a sequential model to get everything working
 pub struct Sequential {
     pub layers: Vec<Box<dyn Layer>>,
-    pub biases: Vec<Array2<f32>>,
-    pub loss: Option<Box<dyn Loss>>,
+    pub loss: Option<Box<dyn Loss>>, //just option for now
 }
 
 impl Sequential {
-
-    pub fn new() -> Sequential {
+    pub fn new() -> Self {
         Sequential {
             layers: Vec::new(),
-            biases: Vec::new(),
             loss: None,
         }
-    }
-
-    pub fn add(&mut self, layer: Box<dyn Layer>) {
-        self.layers.push(layer);
-        //generate a bias layer
     }
 
     pub fn train(
@@ -70,6 +67,13 @@ impl Sequential {
             losses.push(loss);
 
         }*/
+    }
+}
+
+impl Net for Sequential {
+    fn add(&mut self, layer: Box<dyn Layer>) {
+        // push the layer to the network's layer vector
+        self.layers.push(layer);
     }
 }
 
