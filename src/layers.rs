@@ -1,6 +1,6 @@
 use ndarray::Array2;
 use crate::matrixutil::{init_he, init_xavier, init_rand, create_layer};
-use crate::activations::{Activation};
+use crate::activations::{Activations};
 
 // struct that holds each layer
 pub trait Layer{
@@ -11,14 +11,14 @@ pub trait Layer{
 pub struct Dense {
     weights: Array2<f32>,
     bias: Array2<f32>,
-    activation: Box<dyn Activation>,
+    activation: Activations,
 }
 
 impl Dense{
     pub fn new(
         dim1: usize,
         dim2: usize,
-        activation: Box<dyn Activation>,
+        activation: Activations,
         init_func: Option<&str>,
     ) -> Box<dyn Layer> {
         let new_weights: Array2<f32> = match &init_func.unwrap_or("").to_string().to_lowercase()[..] {

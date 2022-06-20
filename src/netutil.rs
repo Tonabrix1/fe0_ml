@@ -1,5 +1,4 @@
 use ndarray::Array2;
-use crate::activations::Activation;
 use crate::layers::Layer;
 use crate::matrixutil::{create_layer};
 

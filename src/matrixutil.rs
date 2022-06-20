@@ -1,4 +1,4 @@
-use ndarray::{s, Array2};
+use ndarray::{s, Array2, ArrayBase, DataMut, Dimension};
 use rand::{thread_rng, Rng};
 use rand_distr::{Distribution, Normal};
 
@@ -60,46 +60,44 @@ pub fn init_he(dim1: usize, dim2: usize) -> Array2<f32> {
     scalar_mult(rand_gaussian(layer, 0., 1.), std)
 }
 
-// calculates the exponential of a matrix
-// layer : the original 2D matrix
-// out : the transformed 2D matrix where each value-x has been replaced by e^x
-pub fn exp_layer(mut layer: Array2<f32>) -> Array2<f32> {
+// calculates the exponential of a tensor
+pub fn exp_layer<S,D>(mut layer: ArrayBase<S, D>) -> ArrayBase<S, D> where S: DataMut<Elem = f32>, D: Dimension, {
     layer.mapv_inplace(|x| x.exp());
     layer
 }
 
 // divides each value in a 2D array by val
-pub fn scalar_div(mut layer: Array2<f32>, val: f32) -> Array2<f32> {
+pub fn scalar_div<S,D>(mut layer: ArrayBase<S, D>, val: f32) -> ArrayBase<S, D> where S: DataMut<Elem = f32>, D: Dimension, {
     layer.mapv_inplace(|x| x / val);
     layer
 }
 
 // multiplies each element in a 2D array by val
-pub fn scalar_mult(mut layer: Array2<f32>, val: f32) -> Array2<f32> {
+pub fn scalar_mult<S,D>(mut layer: ArrayBase<S, D>, val: f32) -> ArrayBase<S, D> where S: DataMut<Elem = f32>, D: Dimension, {
     layer.mapv_inplace(|x| x * val);
     layer
 }
 
 // subtracts val from each value in a 2D array
-pub fn scalar_sub(mut layer: Array2<f32>, val: f32) -> Array2<f32> {
+pub fn scalar_sub<S,D>(mut layer: ArrayBase<S, D>, val: f32) -> ArrayBase<S, D> where S: DataMut<Elem = f32>, D: Dimension, {
     layer.mapv_inplace(|x| x - val);
     layer
 }
 
 // adds val to each value in an array
-pub fn scalar_add(mut layer: Array2<f32>, val: f32) -> Array2<f32> {
+pub fn scalar_add<S,D>(mut layer: ArrayBase<S, D>, val: f32) -> ArrayBase<S, D> where S: DataMut<Elem = f32>, D: Dimension, {
     layer.mapv_inplace(|x| x + val);
     layer
 }
 
 // replaces each value in a 2D array with its reciprocal (1/value)
-pub fn scalar_reciprocal(mut layer: Array2<f32>) -> Array2<f32> {
+pub fn scalar_reciprocal<S,D>(mut layer: ArrayBase<S, D>) -> ArrayBase<S, D> where S: DataMut<Elem = f32>, D: Dimension, {
     layer.mapv_inplace(|x| 1. / x);
     layer
 }
 
 // raises each value in a 2D array to the power of val
-pub fn power_of(mut layer: Array2<f32>, val: i32) -> Array2<f32> {
+pub fn power_of<S,D>(mut layer: ArrayBase<S, D>, val: i32) -> ArrayBase<S, D> where S: DataMut<Elem = f32>, D: Dimension, {
     layer.mapv_inplace(|x| x.powi(val));
     layer
 }
