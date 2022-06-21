@@ -1,5 +1,5 @@
 # fe0_ml
-###(pronounced "fee-oh")
+### (pronounced "fee-oh")
 ---
 **Home-brew machine learning library for rust**
 (currently undergoing a full rewrite)
