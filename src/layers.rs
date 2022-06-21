@@ -1,33 +1,31 @@
-use ndarray::Array2;
+use ndarray::{ArrayBase, OwnedRepr, IxDyn};
 use crate::matrixutil::{init_he, init_xavier, init_rand, create_layer};
 use crate::activations::{Activations};
 
 // struct that holds each layer
 pub trait Layer{
-    fn get_weights(&self) -> Array2<f32>;
-    fn forward_propagate(&mut self, prev: &Array2<f32>);
+    fn get_weights(&self) -> ArrayBase<OwnedRepr<f32>, IxDyn>;
+    fn forward_propagate(&mut self, prev: &ArrayBase<OwnedRepr<f32>, IxDyn>);
 }
 
 pub struct Dense {
-    weights: Array2<f32>,
-    bias: Array2<f32>,
+    weights: ArrayBase<OwnedRepr<f32>, IxDyn>,
+    bias: ArrayBase<OwnedRepr<f32>, IxDyn>,
     activation: Activations,
 }
 
 impl Dense{
     pub fn new(
-        dim1: usize,
-        dim2: usize,
+        dim: Vec<usize>,
         activation: Activations,
         init_func: Option<&str>,
     ) -> Box<dyn Layer> {
-        let new_weights: Array2<f32> = match &init_func.unwrap_or("").to_string().to_lowercase()[..] {
-            "xavier" | "glorot" => init_xavier(dim1, dim2),
-            "kaiming" | "he" => init_he(dim1, dim2),
-            //"lecun" => init_lecun(dim1, dim2)
-            _ => init_rand(dim1, dim2),
+        let new_weights: ArrayBase<OwnedRepr<f32>, IxDyn> = match &init_func.unwrap_or("").to_string().to_lowercase()[..] {
+            "xavier" | "glorot" => init_xavier(dim.clone()),
+            "kaiming" | "he" => init_he(dim.clone()),
+            //"lecun" => init_lecun(dim)
+            _ => init_rand(dim.clone()),
         };
-        let weights_shape: usize = new_weights.shape()[0];
         Box::new(Dense {
             // converting the string back and forth like this is ugly as fuck
             weights: new_weights,
@@ -38,18 +36,19 @@ impl Dense{
              * However, it is not clear if this provides a consistent improvement (in fact some results seem to indicate that this performs worse)
              * and it is more common to simply use 0.
              */
-            bias: create_layer(weights_shape,1),
+            bias: create_layer(vec![*&dim[dim.len()-1],1]),
             activation: activation,
         })
     }
 }
 
 impl Layer for Dense {
-    fn get_weights(&self) -> Array2<f32> {
+    fn get_weights(&self) -> ArrayBase<OwnedRepr<f32>, IxDyn> {
         self.weights.clone()
     }
 
-    fn forward_propagate(&mut self, prev: &Array2<f32>) {
-        self.activation.activate(self.weights.dot(prev) + &self.bias);
+    fn forward_propagate(&mut self, prev: &ArrayBase<OwnedRepr<f32>, IxDyn>) {
+        //self.activation.activate(self.weights.dot(prev) + &self.bias);
+        //Implement for ward prop for n-dimensional tensors
     }
 }

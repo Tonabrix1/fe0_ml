@@ -1,11 +1,13 @@
-use ndarray::{ArrayBase, Dimension, DataMut, DataOwned, RawDataClone};
+use ndarray::{
+    ArrayBase, Dimension, DataMut, DataOwned, RawDataClone
+};
 use std::f32::consts::PI;
 use crate::matrixutil::{
-    create_layer, exp_layer, rand_layer, scalar_add, scalar_reciprocal,
-    scalar_sub, scalar_div
+    exp_layer, scalar_add, scalar_sub, scalar_div
 };
 
 // enum storing each activation function
+#[allow(dead_code)]
 pub enum Activations {
     Sigmoid,
     ReLU,

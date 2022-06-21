@@ -1,6 +1,5 @@
 use ndarray::Array2;
 use crate::layers::Layer;
-use crate::matrixutil::{create_layer};
 
 pub trait Net {
     fn add(&mut self, layer: Box<dyn Layer>);
@@ -13,6 +12,7 @@ pub struct Sequential {
     pub loss: Option<Box<dyn Loss>>, //just option for now
 }
 
+#[allow(dead_code)]
 impl Sequential {
     pub fn new() -> Self {
         Sequential {
