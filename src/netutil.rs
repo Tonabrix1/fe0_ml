@@ -1,6 +1,7 @@
 use ndarray::Array2;
 use crate::layers::Layers;
 use crate::matrixutil::{init_rand, create_layer, init_he, init_xavier};
+use crate::cost::{Cost};
 use ndarray::Ix2;
 
 pub trait Net {
@@ -17,17 +18,18 @@ pub struct Sequential {
     pub weights: Vec<Array2<f32>>,
     pub biases: Vec<Array2<f32>>,
     pub input_dim: usize,
-    pub cost_func: Cost
+    pub cost: Cost,
 }
 
 #[allow(dead_code)]
 impl Sequential {
-    pub fn new(input_dim: usize) -> Self {
+    pub fn new(input_dim: usize, cost: Cost) -> Self {
         Sequential {
             layers: Vec::new(),
             weights: Vec::new(),
             biases: Vec::new(),
             input_dim: input_dim,
+            cost: cost,
         }
     }
 
@@ -64,47 +66,48 @@ impl Sequential {
             a = self.layers[i].activate(z.clone());
             x = a.clone();
         }
+        a
     }
 
     pub fn train(&self, dataset: Vec<Sample>) {
         let mut x: Array2<f32>;
         let mut y: Array2<f32>;
-        let fw_vec: Vec<Vec<Array2<f32>>>;
-        let predictions: Vec<Array2<f32>>;
+        let mut fw_vec: Vec<Vec<Array2<f32>>>;
+        let predictions: Vec<Vec<Vec<Array2<f32>>>>;
         for i in 0..dataset.len() {
             x = dataset[i].0.clone();
             y = dataset[i].1.clone();
             fw_vec = self.collect_forward(x);
             
-            predictions.push(fw_vec)
+            predictions.push(fw_vec);
             println!("prediction: {:?}\nexpected: {:?}\n\n", fw_vec[1][1], y);
             //println!("z: {:?}\na:{:?}", fw_vec[0][1], fw_vec[1][1]);
         }
-        let gradient = self.calculate_gradient(fw_vec, x, y);
-        println!("Weight updates: {:?}\nBias updates: {:?}", gradient.0, gradient.1);
+        let gradient = Sequential::calculate_gradient(self, fw_vec, x, y);
+        println!("Weight updates: {:?}\nBias updates: {:?}", gradient[0], gradient[1]);
    }
 
-   pub fn calculate_gradient(fw_vec: Vec<Vec<Array2<f32>>>, expected: Vec<Array2<f32>>, input: Array2<f32>, expected: Array2<f32>) -> Vec<Vec<Array2<f32>>>{
+   pub fn calculate_gradient(&self, fw_vec: Vec<Vec<Array2<f32>>>, input: Array2<f32>, expected: Array2<f32>) -> Vec<Vec<Array2<f32>>>{
         let mut raw_grad: Array2<f32>;
-        let mut weight_updates: Array2<f32>;
-        let mut bias_updates: Array2<f32>;
+        let mut weight_updates: Vec<Array2<f32>> = Vec::new();
+        let mut bias_updates: Vec<Array2<f32>> = Vec::new();
 
         //we loop backwards boyeiiiiiiiiii
         for i in fw_vec.len()-1..=0 {
             //last layer doesn't have any weights between the activation output and the cost function 
-            if i >= fw_vec.len() {
-                raw_grad = self.layers[i].derivate_activation(fw_vec[i].0) * self.layers[i].cost.derivate(self.layers[i].derivate(fw_vec[i].1, expected[i]));
-                weight_updates.push(fw_vec[i].1 * raw_grad);
-                bias_updates.push(raw_grad);
+            if i >= fw_vec.len()-1 {
+                raw_grad = self.layers[i].derivate_activation(fw_vec[0][i].clone()) * self.cost.derivate(fw_vec[1][i].clone(), expected.clone());
+                weight_updates.push(fw_vec[1][i].clone() * raw_grad.clone());
+                bias_updates.push(raw_grad.clone());
                 continue;
             }
-            raw_grad = self.weights[i-1] * self.layers.derivate_activation(fw_vec[i].0) * raw_grad;
-            bias_updates.push(raw_grad);
+            raw_grad = self.weights[i-1].clone() * self.layers[i].derivate_activation(fw_vec[0][i].clone()) * raw_grad.clone();
+            bias_updates.push(raw_grad.clone());
             if i > 0{
-                weight_updates.push(fw_vec[i].1 * raw_grad);
+                weight_updates.push(fw_vec[1][i].clone() * raw_grad.clone());
                 continue;
             }
-            weight_updates.push(input * raw_grad);
+            weight_updates.push(input.clone() * raw_grad.clone());
         }
         vec![weight_updates, bias_updates]
    }

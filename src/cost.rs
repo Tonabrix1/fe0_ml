@@ -1,4 +1,5 @@
-use ndarray::{Array};
+use ndarray::{Array2};
+use crate::matrixutil::{power_of, scalar_mult};
 
 // enum storing each cost function
 pub enum Cost {
@@ -6,11 +7,15 @@ pub enum Cost {
 }
 
 impl Cost {
-    pub fn calculate(predicted: Array2<f32>, expected: Array2<f32>) -> Array2<f32>{
-        Cost::SE => (predicted - expected).powi(2),
+    pub fn calculate(&self, predicted: Array2<f32>, expected: Array2<f32>) -> Array2<f32>{
+        match self {
+            Cost::SE => { power_of(predicted - expected, 2) },
+        }
     }
 
-    pub fn derivate(predicted: Array2<f32>, expected: Array2<f32>) -> Array2<f32> {
-        2 * (predicted - expected)
+    pub fn derivate(&self, predicted: Array2<f32>, expected: Array2<f32>) -> Array2<f32> {
+        match self {
+            Cost::SE => { scalar_mult(predicted - expected, 2f32) },
+        } 
     }
 }
