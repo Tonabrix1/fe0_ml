@@ -9,15 +9,15 @@ pub fn create_layer<D>(dim: Vec<usize>) -> ArrayBase<OwnedRepr<f32>, D> where D:
     Array::zeros(shape)
 }
 
-// replaces all values in a 2D matrix with a random number between x and y (inclusive)
-// layer : the original 2D matrix
-// out : the transformed 2D matrix where all values have been randomized
+// replaces all values in an ND matrix with a random number between x and y (inclusive)
+// layer : the original ND matrix
+// out : the transformed ND matrix where all values have been randomized
 pub fn rand_layer<S,D>(mut layer: ArrayBase<S, D>, x: f32, y: f32) -> ArrayBase<S, D> where S: DataMut<Elem = f32>, D: Dimension, {
-    layer.mapv_inplace(|_| thread_rng().gen_range(x..y));
+    layer.mapv_inplace(|_| thread_rng().gen_range(x..=y));
     layer
 }
 
-// replaces all values in a 2D matrix with a random number taken from a gaussian (normal) distribution
+// replaces all values in an ND matrix with a random number taken from a gaussian (normal) distribution
 pub fn rand_gaussian<D>(mut layer: ArrayBase<OwnedRepr<f32>, D>, mean: f32, std: f32) -> ArrayBase<OwnedRepr<f32>, D> where D: Dimension, {
     let norm = Normal::new(mean, std).unwrap();
     let mut gen = thread_rng();
@@ -106,19 +106,3 @@ pub fn arg_max(layer: Array2<f32>) -> (usize, usize) {
     }
     max_indx
 }
-/*
-// preforms matrix multiplication of two arrays (A, B) and returns a new array with dimensions (A.shape[0],B.shape[1])
-pub fn mat_mul(arr1: Array2<f32>, arr2: Array2<f32>) -> Array2<f32> {
-    let m1: usize = arr1.shape()[0];
-    let m2: &[usize] = arr2.shape();
-    let mut outp: Array2<f32> = create_layer(m1, m2[1]);
-    for i in 0..m1 {
-        for j in 0..m2[1] {
-            for k in 0..m2[0] {
-                outp[[i, j]] = arr1[[i, k]] * arr2[[k, j]];
-            }
-        }
-    }
-    outp
-}
-*/
