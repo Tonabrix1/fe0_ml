@@ -1,14 +1,15 @@
-use ndarray::Array2;
+use std::ops::Sub;
 use crate::layers::Layers;
 use crate::matrixutil::{init_rand, create_layer, init_he, init_xavier};
 use crate::cost::{Cost};
-use ndarray::Ix2;
+use ndarray::{Array2, Ix2};
 
 pub trait Net {
     fn add(&mut self, layer: Layers);
     fn summary(&self);
 }
 
+#[derive(Clone)]
 pub struct Sample(pub Array2<f32>, pub Array2<f32>);
 
 // main struct that holds a reference to the layers and biases
@@ -59,6 +60,7 @@ impl Sequential {
         //doing this dumb shit because rust won't let me run code with values that "could be uninitialized" fuck you
         let mut z: Array2<f32> = self.layers[0].forward_propagate(x.clone(), self.weights[0].clone(), self.biases[0].clone());
         let mut a: Array2<f32> = self.layers[0].activate(z.clone());
+        x = a.clone();
         for i in 1..self.layers.len() {
             z = self.layers[i].forward_propagate(x, self.weights[i].clone(), self.biases[i].clone());
             a = self.layers[i].activate(z.clone());
@@ -67,7 +69,7 @@ impl Sequential {
         a
     }
 
-    pub fn train(&self, dataset: Vec<Sample>) {
+    pub fn train(&mut self, dataset: Vec<Sample>, lr: f32) {
         let mut x: Array2<f32> = dataset[0].0.clone();
         let mut y: Array2<f32> = dataset[0].1.clone();
         let mut fw_vec: Vec<Vec<Array2<f32>>> = Vec::new();
@@ -89,11 +91,16 @@ impl Sequential {
             //println!("z: {:?}\na:{:?}", fw_vec[0][1], fw_vec[1][1]);
         }
         let gradient = Sequential::calculate_gradient(self, fw_vec, x, y);
-        println!("Weight updates: {:?}\nBias updates: {:?}", gradient[0], gradient[1]);
+        println!("Final weight updates: {:?}\nFinal bias updates: {:?}", gradient[0].last().unwrap(), gradient[1].last().unwrap());
+        println!("Final weights: {:?}\nFinal bias: {:?}")
+        let last_weight = self.weights.len()-1;
+        for i in last_weight..=0 {
+            self.weights[i] = self.weights[i].clone().sub(gradient[0][last_weight-i].clone() * lr);
+            self.biases[i] = self.weights[i].clone().sub(gradient[1][last_weight-i].clone() * lr);
+        }
    }
 
    pub fn calculate_gradient(&self, fw_vec: Vec<Vec<Array2<f32>>>, input: Array2<f32>, expected: Array2<f32>) -> Vec<Vec<Array2<f32>>>{
-        println!("{:?}", fw_vec);
         //both fw[0] and fw[1] should have equal lengths so this is used to index the last element for both
         let last_pred: usize = fw_vec[0].len() - 1;
         let mut raw_grad: Array2<f32> = self.layers[0].derivate_activation(fw_vec[0][last_pred].clone()) * self.cost.derivate(fw_vec[1][last_pred].clone(), expected.clone());
@@ -110,7 +117,6 @@ impl Sequential {
             }
             weight_updates.push(input.clone() * raw_grad.clone());
         }
-        println!("{:?}", weight_updates);
         vec![weight_updates, bias_updates]
    }
 
@@ -125,11 +131,11 @@ impl Sequential {
         for i in 0..self.layers.len() {
             z = self.layers[i].forward_propagate(x, self.weights[i].clone(), self.biases[i].clone());
             z_vec.push(z.clone());
-            a = self.layers[i].activate(z.clone());
+            a = self.layers[i].activate(z);
             x = a.clone();
-            a_vec.push(a.clone());
+            a_vec.push(a);
         }
-        println!("z: {:?}\na: {:?}\n\n", z_vec.clone(), a_vec.clone());
+        //println!("z: {:?}\n\na: {:?}\n\n", z_vec.clone(), a_vec.clone());
         vec![z_vec, a_vec]
    }
 }

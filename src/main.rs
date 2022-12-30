@@ -12,7 +12,7 @@ use ndarray::{Array2,Ix2};
 
 fn main() {
     let input_dim = 784;
-    let mut model = Sequential::new(input_dim.clone(), Cost::SE);
+    let mut model = Sequential::new(input_dim.clone(), Cost::MSE);
     model.add(Dense{units: 128, activation: Activations::ReLU, init_func: String::from("glorot")});
     model.add(Dense{units: 32, activation: Activations::ReLU, init_func: String::from("glorot")});
     model.add(Dense{units: 10, activation: Activations::Softmax, init_func: String::from("glorot")});
@@ -22,6 +22,10 @@ fn main() {
     println!("input: {:?}", input.clone());
     let mut output: Array2<f32> = create_layer(vec![1,10]);
     output[[0,0]] = 1f32;
-    let sample = Sample(input, output);
-    model.train(vec![sample]);
+    let sample = Sample(input.clone(), output);
+    let epochs = 1000;
+    for i in 0..epochs {
+        model.train(vec![sample.clone()], 0.001);
+    }
+    model.predict(sample.0);
 }
