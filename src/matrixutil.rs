@@ -54,13 +54,13 @@ pub fn exp_layer<S,D>(mut layer: ArrayBase<S, D>) -> ArrayBase<S, D> where S: Da
     layer
 }
 
-// divides each value in a 2D array by val
+// divides each value in a tensor by val
 pub fn scalar_div<S,D>(mut layer: ArrayBase<S, D>, val: f32) -> ArrayBase<S, D> where S: DataMut<Elem = f32>, D: Dimension, {
     layer.mapv_inplace(|x: f32| x / val);
     layer
 }
 
-// multiplies each element in a 2D array by val
+// multiplies each element in a tensor by val
 pub fn scalar_mult<S,D>(mut layer: ArrayBase<S, D>, val: f32) -> ArrayBase<S, D> where S: DataMut<Elem = f32>, D: Dimension, {
     layer.mapv_inplace(|x: f32| x * val);
     layer
