@@ -19,13 +19,13 @@ fn main() {
     model.summary();
 
     let input = init_rand::<Ix2>(vec![1,input_dim]);
-    println!("input: {:?}", input.clone());
     let mut output: Array2<f32> = create_layer(vec![1,10]);
     output[[0,0]] = 1f32;
     let sample = Sample(input.clone(), output);
-    let epochs = 1000;
+    let epochs = 2;
+    let learning_rate = 0.001;
     for i in 0..epochs {
-        model.train(vec![sample.clone()], 0.001);
+        model.train(vec![sample.clone()], learning_rate);
     }
     model.predict(sample.0);
 }

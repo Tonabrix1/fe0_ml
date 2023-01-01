@@ -1,4 +1,4 @@
-use std::ops::Sub;
+use std::ops::{Add,Sub};
 use crate::layers::Layers;
 use crate::matrixutil::{init_rand, create_layer, init_he, init_xavier};
 use crate::cost::{Cost};
@@ -72,6 +72,8 @@ impl Sequential {
     pub fn train(&mut self, dataset: Vec<Sample>, lr: f32) {
         let mut x: Array2<f32> = dataset[0].0.clone();
         let mut y: Array2<f32> = dataset[0].1.clone();
+        println!("input: {:?}\noutput:{:?}",x,y);
+        // Vector of prectictions, each prediction is a vector of a,z pairs for each layer, each a,z pair is a vector holding a and z which are Array2<f32>
         let mut fw_vec: Vec<Vec<Array2<f32>>> = Vec::new();
         let mut predictions: Vec<Vec<Vec<Array2<f32>>>> = Vec::new();
         println!("dataset len: {}", dataset.len());
@@ -80,42 +82,46 @@ impl Sequential {
                 fw_vec = self.collect_forward(x.clone());
                 
                 predictions.push(fw_vec.clone());
-                println!("prediction: {:?}\nexpected: {:?}\n\n", fw_vec[1][1], y.clone());
+                continue;
             }
             x = dataset[i].0.clone();
             dataset[i].1.clone();
             fw_vec = self.collect_forward(x.clone());
             
             predictions.push(fw_vec.clone());
-            println!("prediction: {:?}\nexpected: {:?}\n\n", fw_vec[1][2], y.clone());
+            println!("prediction: {:?}\nexpected: {:?}\n\n", fw_vec[1].last().unwrap(), y.clone());
             //println!("z: {:?}\na:{:?}", fw_vec[0][1], fw_vec[1][1]);
         }
-        let gradient = Sequential::calculate_gradient(self, fw_vec, x, y);
-        println!("Final weight updates: {:?}\nFinal bias updates: {:?}", gradient[0].last().unwrap(), gradient[1].last().unwrap());
-        println!("Final weights: {:?}\nFinal bias: {:?}")
-        let last_weight = self.weights.len()-1;
+        let gradient = Sequential::calculate_gradient(self, predictions, x, vec![y]);
+        println!("Final weight updates: {:?}\nFinal bias updates: {:?}", gradient[0].clone(), gradient[1].clone());
+        println!("Final weights: {:?}\nFinal bias: {:?}", self.weights.last().unwrap(), self.biases.last().unwrap());
+        let last_weight: usize = self.weights.len()-1;
         for i in last_weight..=0 {
-            self.weights[i] = self.weights[i].clone().sub(gradient[0][last_weight-i].clone() * lr);
-            self.biases[i] = self.weights[i].clone().sub(gradient[1][last_weight-i].clone() * lr);
+            self.weights[i] = self.weights[i].clone().sub(gradient[0][i].clone() * lr);
+            self.biases[i] = self.biases[i].clone().sub(gradient[1][i].clone() * lr);
         }
    }
 
-   pub fn calculate_gradient(&self, fw_vec: Vec<Vec<Array2<f32>>>, input: Array2<f32>, expected: Array2<f32>) -> Vec<Vec<Array2<f32>>>{
-        //both fw[0] and fw[1] should have equal lengths so this is used to index the last element for both
-        let last_pred: usize = fw_vec[0].len() - 1;
-        let mut raw_grad: Array2<f32> = self.layers[0].derivate_activation(fw_vec[0][last_pred].clone()) * self.cost.derivate(fw_vec[1][last_pred].clone(), expected.clone());
-        let mut weight_updates: Vec<Array2<f32>> = vec![fw_vec[1][last_pred].clone() * raw_grad.clone()];
+   pub fn calculate_gradient(&self, predictions: Vec<Vec<Vec<Array2<f32>>>>, input: Array2<f32>, expected: Vec<Array2<f32>>) -> Vec<Vec<Array2<f32>>>{
+        let batch_size: usize = predictions.len();
+        println!("batch {}",batch_size);
+        let last_pred: usize = predictions[0][0].len() - 1;
+        println!("{}",last_pred);
+        let mut raw_grad: Array2<f32> = self.layers[0].derivate_activation(predictions[0][0][last_pred].clone()) * self.cost.derivate(&predictions, &expected);
+        let mut weight_updates: Vec<Array2<f32>> = vec![predictions[0][1][last_pred].clone() * raw_grad.clone()];
         let mut bias_updates: Vec<Array2<f32>> = vec![raw_grad.clone()];
 
         //we loop backwards boyeiiiiiiiiii, starting at the second to last element in the array because stinky rust compiler shenanigans
-        for i in last_pred-1..=0 {
-            raw_grad = self.weights[i-1].clone() * self.layers[i].derivate_activation(fw_vec[0][i].clone()) * raw_grad.clone();
-            bias_updates.push(raw_grad.clone());
-            if i > 0{
-                weight_updates.push(fw_vec[1][i].clone() * raw_grad.clone());
-                continue;
+        for j in 1..batch_size {
+            for i in last_pred-1..=0 {
+                raw_grad = self.weights[i-1].clone() * self.layers[i].derivate_activation(predictions[j][0][i].clone()) * raw_grad.clone();
+                bias_updates.push(raw_grad.clone());
+                if i > 0{
+                    weight_updates.push(predictions[j][1][i].clone() * raw_grad.clone());
+                    continue;
+                }
+                weight_updates.push(input.clone() * raw_grad.clone());
             }
-            weight_updates.push(input.clone() * raw_grad.clone());
         }
         vec![weight_updates, bias_updates]
    }
