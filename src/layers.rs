@@ -1,8 +1,5 @@
-use ndarray::{
-    Array2, Array, Dimension, OwnedRepr
-};
-use crate::matrixutil::{init_he, init_xavier, init_rand, create_layer};
-use crate::activations::{Activations};
+use ndarray::Array2;
+use crate::activations::Activations;
 
 // struct that can be used to accept layers as arguments generally
 pub enum Layers {
@@ -34,7 +31,7 @@ impl Layers {
 
     pub fn display(&self) -> String{
         match self {
-            Layers::Dense{units, activation, init_func} => format!("Dense Layer - {:?} Units", units),
+            Layers::Dense{units, activation, init_func} => format!("Dense Layer - {:?} Units - {:?} activation", units, activation),
         }
     }
 
