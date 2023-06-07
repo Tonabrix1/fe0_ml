@@ -1,7 +1,7 @@
-use std::ops::{Add,Sub};
+use std::ops::Sub;
 use crate::layers::Layers;
-use crate::matrixutil::{init_rand, create_weight, init_he, init_xavier, transpose, product};
-use crate::cost::{Cost};
+use crate::matrixutil::{init_rand, create_weight, init_he, init_xavier, transpose};
+use crate::cost::Cost;
 use ndarray::{Array2, Ix2};
 
 pub trait Net {
@@ -77,20 +77,14 @@ impl Sequential {
         //output for collect forward
         let mut fw_vec: Vec<Vec<Array2<f32>>> = Vec::new();
 
-        //vecs for breaking fw_vec back into parts (there's gotta be a better way than this right?)
-        let mut a_vec: Vec<Vec<Array2<f32>>> = Vec::new();
-        let mut z_vec: Vec<Vec<Array2<f32>>> = Vec::new();
-
         // stores a_vec and z_vec for backprop and stuff
         let mut predictions: Vec<Vec<Vec<Array2<f32>>>> = Vec::new();
         println!("dataset len: {}", dataset.len());
         for i in 0..dataset.len() {
             x = dataset[i].0.clone();
             y = dataset[i].1.clone();
-            if i <= 0 {
+            if i == 0 {
                 fw_vec = self.collect_forward(x.clone());
-                a_vec.push(fw_vec[1].clone());
-                z_vec.push(fw_vec[0].clone());
                 predictions.push(fw_vec.clone());
                 continue;
             }
@@ -100,21 +94,24 @@ impl Sequential {
             println!("prediction: {:?}\nexpected: {:?}\n\n", fw_vec[1].last().unwrap(), y.clone());
             //println!("z: {:?}\na:{:?}", fw_vec[0][1], fw_vec[1][1]);
         }
+
+        println!("pred: {:?}",predictions.last().unwrap()[1].last().unwrap());
+        println!("goal: {:?}", y);
+        println!("cost: {:?}", self.cost.calculate(&predictions, &vec![y.clone()]));
+
         //TODO: what the fuck is this I need to pass multiple x's and y's
         let gradient = Sequential::calculate_gradient(self, predictions, x, vec![y]);
         //println!("Final weight updates: {:?}\nFinal bias updates: {:?}", gradient[0].iter().last().unwrap(), gradient[1][0].iter().last().unwrap());
         //println!("Final weights: {:?}\nFinal bias: {:?}", self.weights.last().unwrap(), self.biases.last().unwrap());
         let last_weight: usize = self.weights.len()-1;
-        println!("last_weight: {:?}", last_weight);
-        println!("last_gradient: {:?}", gradient[0].len());
-        println!("\n\nweights before update: {:?}\n\n", self.weights.last().unwrap());
+        let last_grad = gradient[0].len() - 1;
+        //println!("\n\nweights before update: {:?}\n\n", self.weights.last().unwrap());
         for i in (0..last_weight).rev() {
-            let new_weight = self.weights[i].clone().sub(gradient[0][i].clone() * lr);
-            println!("new weight: {:?}", new_weight);
-            self.weights[i] = self.weights[i].clone().sub(gradient[0][i].clone() * lr);
-            self.biases[i] = self.biases[i].clone().sub(gradient[1][i].clone() * lr);
+            let new_weight = self.weights[i].clone().sub(gradient[0][last_grad - i].clone() * lr);
+            self.weights[i] = self.weights[i].clone().sub(gradient[0][last_grad - i].clone() * lr);
+            self.biases[i] = self.biases[i].clone().sub(gradient[1][last_grad - i].clone() * lr);
         }
-        println!("\n\nweights after update: {:?}\n\n", self.weights.last().unwrap());
+        //println!("\n\nweights after update: {:?}\n\n", self.weights.last().unwrap());
    }
 
 
@@ -126,7 +123,8 @@ impl Sequential {
         println!("Last prediction: {}",last_pred);
 
         
-        let mut raw_grad: Array2<f32> = Array2::<f32>::zeros((1,1));
+        let mut C_wrt_z: Array2<f32> = Array2::<f32>::zeros((1,1));
+        let mut C_wrt_a: Array2<f32> = Array2::<f32>::zeros((1,1));
         let mut weight_updates: Vec<Array2<f32>> = Vec::new();
         let mut bias_updates: Vec<Array2<f32>> = Vec::new();
 
@@ -134,34 +132,31 @@ impl Sequential {
 
         for j in 0..batch_size {
             for i in (0..last_pred).rev() {
-                // ∂C/∂w = ∂C/∂A * ∂A/∂Z * ∂Z/∂w  
+                let z = predictions[j][0][i].clone();
+                let a_prev = if i > 0 {&predictions[j][1][i-1]} else {&input};
+                // ∂C/∂w = ∂Z/∂w * ∂A/∂Z * ∂C/∂A
                 if i == last_pred - 1{
-                    println!("cost w.r.t a{:?}\n a w.r.t z{:?}", self.cost.derivate(&predictions, &expected), self.layers[i].derivate_activation(predictions[j][0][i].clone()));
-                    println!("cost w.r.t z {:?}", self.layers[i].derivate_activation(predictions[j][0][i].clone()) * self.cost.derivate(&predictions, &expected));
-                    // ∂C/∂zₙ = ∂C/∂aₙ * ∂aₙ/∂zₙ
-                    raw_grad = self.layers[i].derivate_activation(predictions[j][0][i].clone()) * self.cost.derivate(&predictions, &expected);
-                    // ∂C/∂wₙ = raw_grad * ∂zₙ/∂wₙ
-                    // Z(w,X,b) = w.X + b
-                    // ∂Z/∂w = Xᵀ
-                    weight_updates.push(transpose(&input).dot(&raw_grad));
-                    println!("{:?}", weight_updates);
+                    // ∂C/∂zₙ = ∂aₙ/∂zₙ * ∂C/∂aₙ
+                    C_wrt_z = self.layers[i].derivate_activation(z) * self.cost.derivate(&predictions, &expected);
                 } else {
-                    println!("a w.r.t z{:?}\nc w.r.t. z[i+1] {:?}", self.layers[i+1].derivate_activation(predictions[j][0][i].clone()), raw_grad.clone());
-                    println!("cost w.r.t z {:?}", product(transpose(&self.layers[i].derivate_activation(predictions[j][0][i].clone())),raw_grad.clone()));
-                    // ∂C/∂zₙ₋₁ = ∂C/∂zₙ * ∂zₙ/∂aₙ₋₁ * ∂aₙ₋₁/∂zₙ₋₁
+                    // ∂C/∂aₙ₋₁ = ∂zₙ/∂aₙ₋₁ * ∂C/∂zₙ
                     // ∂zₙ/∂aₙ₋₁ = wₙ.T
-                    raw_grad = transpose(&self.weights[i]).dot(&product(transpose(&raw_grad), self.layers[i].derivate_activation(predictions[j][0][i].clone())));
-                    // ∂C/∂wₙ₋₁ = ∂C/∂zₙ₋₁ * ∂zₙ₋₁/∂wₙ₋₁
-                    weight_updates.push(transpose(&predictions[j][1][i]).dot(&raw_grad));
-                    println!("\n\nweight update vec: {:?}\n\n",weight_updates);
+                    //println!("{:?} x {:?}",C_wrt_z.shape(), transpose(&self.weights[i+1]).shape());
+                    C_wrt_a = C_wrt_z.dot(&transpose(&self.weights[i+1]));
+                    // ∂C/∂zₙ₋₁ = ∂aₙ₋₁/∂zₙ₋₁ * ∂C/∂aₙ₋₁
+                    //println!("{:?} * {:?}",C_wrt_a.shape(), self.layers[i].derivate_activation(z.clone()).shape());
+                    C_wrt_z = self.layers[i].derivate_activation(z) * C_wrt_a;
                 }
-                // ∂C/∂bₙ = ∂C/∂A * ∂A/∂Z * ∂Z/∂bₙ
+                // ∂C/∂bₙ = ∂Z/∂bₙ * ∂A/∂Z * ∂C/∂A
                 // ∂Z/∂bₙ = 1
-                // ∂C/∂bₙ = raw_grad * 1 = raw_grad
-                #[cfg(feature = "a-mode")] {
-                    bias_updates.push(raw_grad.clone());
-                    println!("\n\nbias update vec: {:?}\n\n", bias_updates);
-                }
+                // ∂C/∂bₙ = 1 * C_wrt_z = C_wrt_z
+                bias_updates.push(C_wrt_z.clone());
+                // ∂C/∂wₙ = ∂zₙ/∂wₙ * C_wrt_z
+                // Z(w,X,b) = w.X + b
+                // ∂Z/∂w = Xᵀ
+                //println!("{:?} x {:?}",transpose(a_prev).shape(), C_wrt_z.shape());
+                weight_updates.push(transpose(a_prev).dot(&C_wrt_z));
+                //println!("\n\nweights update dim: {:?}\n\n", transpose(a_prev).dot(&C_wrt_z).shape());
             }
         }
         //println!("\n\nweight update vec: {:?}\n\n",weight_updates);

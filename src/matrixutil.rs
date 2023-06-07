@@ -91,7 +91,7 @@ pub fn power_of<S,D>(mut weight: ArrayBase<S, D>, val: i32) -> ArrayBase<S, D> w
 }
 
 // finds the largest element in an 2D-array and returns the index of it as a tuple
-pub fn arg_max(weight: Array2<f32>) -> (usize, usize) {
+pub fn arg_max(weight: &Array2<f32>) -> (usize, usize) {
     let mut max_indx: (usize, usize) = (0, 0);
     let mut max: f32 = weight[[0, 0]];
     let m = weight.shape();
@@ -119,7 +119,7 @@ pub fn transpose(weight: &Array2<f32>) -> Array2<f32> {
     out
 }
 
-pub fn flatten(weight: Array2<f32>) -> Array2<f32> {
+pub fn flatten(weight: &Array2<f32>) -> Array2<f32> {
     let m = weight.shape();
     let mut out = create_weight(vec![1,m[1] * m[0]]);
     let mut c = 0;
@@ -130,19 +130,4 @@ pub fn flatten(weight: Array2<f32>) -> Array2<f32> {
         }
     }
     out
-}
-
-pub fn product(a: Array2<f32>, b: Array2<f32>) -> Array2<f32> {
-    let ik: &[usize] = a.shape();
-    let kj: &[usize] = b.shape();
-    assert!(ik[1] == kj[0], "Incompatible shapes {:?} x {:?} : a.shape()[1] != b.shape()[0]", ik, kj);
-    let mut outp: Array2<f32> = create_weight(vec![ik[0], kj[1]]);
-    for i in 0..ik[0] {
-        for j in 0..kj[1] {
-            for k in 0..ik[1] {
-                outp[[i, j]] += a[[i, k]] * b[[k, j]];
-            }
-        }
-    }
-    outp
 }
