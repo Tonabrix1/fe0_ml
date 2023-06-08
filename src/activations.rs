@@ -1,9 +1,11 @@
+#![allow(dead_code, unused_variables)]
+
 use ndarray::{
     Array, Dimension
 };
 use std::f32::consts::PI;
 use crate::matrixutil::{
-    exp_weight, scalar_add, scalar_sub, scalar_div
+    exp_weight, scalar_add, scalar_sub, scalar_div, scalar_mult
 };
 
 // enum storing each activation function
@@ -22,7 +24,7 @@ pub enum Activations {
 }
 
 impl Activations {
-    pub fn activate<D>(&self, weight: Array<f32, D>) -> Array<f32, D> where D: Dimension, {
+    pub fn activate<D>(&self, weight: &Array<f32, D>) -> Array<f32, D> where D: Dimension, {
         match self {
             Activations::Sigmoid => {
                 weight.mapv(|x: f32| 1. / (1. + (-x).exp()))
@@ -37,9 +39,10 @@ impl Activations {
                 weight.mapv(|x: f32| x.tanh())
             },
             Activations::Softmax => {
-                let ex: Array<f32, D> = exp_weight(weight);
-                let sum: f32 = ex.sum();
-                scalar_div(ex, sum)
+                let mut w = weight.clone();
+                let ex: &mut Array<f32, D> = exp_weight(&mut w);
+                let sum: f32 = (&ex).sum();
+                scalar_div(ex, sum).to_owned()
             },
             Activations::SoftPlus => {
                 weight.mapv(|x| (x.exp() + 1.).ln())
@@ -65,15 +68,16 @@ impl Activations {
     }
 
     // I know this isn't technically grammatically correct but I like the name for homogeneity
-    pub fn derivate<D>(&self, weight: Array<f32, D>) -> Array<f32, D> where D: Dimension, {
+    pub fn derivate<D>(&self, weight: &Array<f32, D>) -> Array<f32, D> where D: Dimension, {
         match self {
             Activations::Sigmoid => {
                 // e^-x
-                let ex: Array<f32, D> = exp_weight(-1f32 * weight);
+                let ex: Array<f32, D> = exp_weight(scalar_mult(&mut weight.clone(),-1f32)).to_owned();
+                let ex2: &mut Array<f32, D> = &mut ex.clone();
                 // (e^-x)+1
-                let denom: Array<f32, D> = scalar_add(ex.clone(), 1.);
+                let denom: &Array<f32, D> = scalar_add(ex2, 1.);
                 // e^-x/((e^-1)+1)^2 = e^-x/((e^-1)+1)*((e^-1)+1)
-                ex / (denom.clone() * denom)
+                ex.to_owned() / (denom * denom)
             },
             Activations::ReLU => {
                 // technically it's undefined at x[[i,j]] == 0
@@ -89,7 +93,8 @@ impl Activations {
             Activations::Softmax => {
                 //TODO: add temperature
                 let sf: Array<f32, D> = self.activate(weight);
-                sf.clone() * scalar_sub(sf, 1.)
+                let sf2: Array<f32, D> = scalar_sub(&mut sf.to_owned(), 1.).to_owned();
+                sf * sf2
             },
             Activations::SoftPlus => {
                 //derivative of softplus is sigmoid

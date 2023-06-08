@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_variables)]
 use ndarray::Array2;
 use crate::activations::Activations;
 
@@ -21,10 +22,10 @@ impl Layers {
         }
     }
 
-    pub fn forward_propagate(&self, input:  Array2<f32>, weights: Array2<f32>, bias: Array2<f32>) -> Array2<f32> {
+    pub fn forward_propagate(&self, input:  &Array2<f32>, weights: &Array2<f32>, bias: &Array2<f32>) -> Array2<f32> {
         match self {
             Layers::Dense{units, activation, init_func} => {
-                input.dot(&weights) + bias
+                input.dot(weights) + bias
             }
         }
     }
@@ -35,13 +36,13 @@ impl Layers {
         }
     }
 
-    pub fn activate(&self, input: Array2<f32>) -> Array2<f32>{
+    pub fn activate(&self, input: &Array2<f32>) -> Array2<f32>{
         match self {
             Layers::Dense{units, activation, init_func} => activation.activate(input),
         }
     }
 
-    pub fn derivate_activation(&self, input: Array2<f32>) -> Array2<f32> {
+    pub fn derivate_activation(&self, input: &Array2<f32>) -> Array2<f32> {
         match self {
             Layers::Dense{units, activation, init_func} => activation.derivate(input),
         }

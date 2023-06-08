@@ -1,9 +1,9 @@
 use mnist::{Mnist, MnistBuilder};
 use ndarray::{s, Array3, Array2};
 use crate::matrixutil::{create_weight, flatten};
-use crate::typings::{dataset, Sample};
+use crate::typings::{Dataset, Sample};
 
-pub fn mnist_loader(mut dataset: dataset, training_samples: usize) -> dataset{
+pub fn mnist_loader(mut dataset: Dataset, training_samples: usize) -> Dataset{
     let Mnist { trn_img, trn_lbl, ..} = MnistBuilder::new()
         .label_format_digit()
         .training_set_length(training_samples as u32)
@@ -27,7 +27,7 @@ pub fn mnist_loader(mut dataset: dataset, training_samples: usize) -> dataset{
 
     for i in 0..train_data.shape()[0] {
         let image = train_data.slice(s![i, .., ..]);
-        let mut label_vec: Array2<f32> = create_weight(vec![1,10]);
+        let mut label_vec: Array2<f32> = create_weight(&vec![1,10]);
         let label_val: usize = train_labels[[i, 0]] as usize;
         label_vec[[0, label_val]] = 1f32;
         let sample: Sample = Sample{0:flatten(&image.to_owned()), 1:label_vec};
