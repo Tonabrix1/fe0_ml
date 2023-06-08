@@ -1,16 +1,16 @@
 use std::ops::Sub;
 use crate::layers::Layers;
 use crate::matrixutil::{init_rand, create_weight, init_he, init_xavier, transpose};
+use rand::thread_rng;
+use rand::seq::SliceRandom;
 use crate::cost::Cost;
 use ndarray::{Array2, Ix2};
+use super::typings::{dataset, forward_batch, ds_batch, Sample};
 
 pub trait Net {
     fn add(&mut self, layer: Layers);
     fn summary(&self);
 }
-
-#[derive(Clone)]
-pub struct Sample(pub Array2<f32>, pub Array2<f32>);
 
 // main struct that holds a reference to the layers and biases
 // just starting with a sequential model to get everything working
@@ -69,58 +69,74 @@ impl Sequential {
         a
     }
 
-    pub fn train(&mut self, dataset: Vec<Sample>, lr: f32) {
+    pub fn train(&mut self, dataset: dataset, lr: f32, batch_size: usize, epochs: usize) {
         //TODO: come back and optimize/simplify all this unorganized mess
         let mut x: Array2<f32> = Array2::<f32>::zeros((1,1));
         let mut y: Array2<f32> = Array2::<f32>::zeros((1,1));
+        let dataset_len = dataset.len() as f32;
         
-        //output for collect forward
+        //output for collect forward; wasteful initialization here to keep the compiler comfy, optimize this
         let mut fw_vec: Vec<Vec<Array2<f32>>> = Vec::new();
 
-        // stores a_vec and z_vec for backprop and stuff
-        let mut predictions: Vec<Vec<Vec<Array2<f32>>>> = Vec::new();
-        println!("dataset len: {}", dataset.len());
-        for i in 0..dataset.len() {
-            x = dataset[i].0.clone();
-            y = dataset[i].1.clone();
-            if i == 0 {
-                fw_vec = self.collect_forward(x.clone());
-                predictions.push(fw_vec.clone());
-                continue;
-            }
-            fw_vec = self.collect_forward(x.clone());
+        // stores a_vec and z_vec for backprop and stuff; wasteful initialization here to keep the compiler comfy, optimize this
+        let mut predictions: forward_batch = Vec::with_capacity(dataset_len as usize);
+        //println!("dataset len: {}", dataset.len());
+        let batches: ds_batch = Self::create_batches(dataset, batch_size);
+        for _ in 0..epochs {
+            for batch in batches.iter() {
+                let batch_input: Vec<Array2<f32>> = Vec::new();
+                let batch_labels: Vec<Array2<f32>> = Vec::new(); 
+                for sample in batch.iter() {
+                    x = sample.0.to_owned();
+                    y = sample.1.to_owned();
+                    fw_vec = self.collect_forward(x.clone());
+                    predictions.push(fw_vec.clone());
+                    //println!("prediction: {:?}\nexpected: {:?}\n\n", fw_vec[1].last().unwrap(), y.clone());
+                }
             
-            predictions.push(fw_vec.clone());
-            println!("prediction: {:?}\nexpected: {:?}\n\n", fw_vec[1].last().unwrap(), y.clone());
-            //println!("z: {:?}\na:{:?}", fw_vec[0][1], fw_vec[1][1]);
-        }
+                println!("cost: {:?}", self.cost.calculate(&predictions, &vec![y.clone()]));
 
-        println!("pred: {:?}",predictions.last().unwrap()[1].last().unwrap());
-        println!("goal: {:?}", y);
-        println!("cost: {:?}", self.cost.calculate(&predictions, &vec![y.clone()]));
-
-        //TODO: what the fuck is this I need to pass multiple x's and y's
-        let gradient = Sequential::calculate_gradient(self, predictions, x, vec![y]);
-        //println!("Final weight updates: {:?}\nFinal bias updates: {:?}", gradient[0].iter().last().unwrap(), gradient[1][0].iter().last().unwrap());
-        //println!("Final weights: {:?}\nFinal bias: {:?}", self.weights.last().unwrap(), self.biases.last().unwrap());
-        let last_weight: usize = self.weights.len()-1;
-        let last_grad = gradient[0].len() - 1;
-        //println!("\n\nweights before update: {:?}\n\n", self.weights.last().unwrap());
-        for i in (0..last_weight).rev() {
-            let new_weight = self.weights[i].clone().sub(gradient[0][last_grad - i].clone() * lr);
-            self.weights[i] = self.weights[i].clone().sub(gradient[0][last_grad - i].clone() * lr);
-            self.biases[i] = self.biases[i].clone().sub(gradient[1][last_grad - i].clone() * lr);
+                //TODO: what the fuck is this I need to pass multiple x's and y's
+                let gradient = Sequential::calculate_gradient(self, &predictions, &batch_input, &batch_labels);
+                //println!("Final weight updates: {:?}\nFinal bias updates: {:?}", gradient[0].iter().last().unwrap(), gradient[1][0].iter().last().unwrap());
+                //println!("Final weights: {:?}\nFinal bias: {:?}", self.weights.last().unwrap(), self.biases.last().unwrap());
+                let last_weight: usize = self.weights.len()-1;
+                let last_grad = gradient[0].len() - 1;
+                //println!("\n\nweights before update: {:?}\n\n", self.weights.last().unwrap());
+                for i in (0..last_weight).rev() {
+                    self.weights[i] = self.weights[i].clone().sub(gradient[0][last_grad - i].clone() * lr/dataset_len);
+                    self.biases[i] = self.biases[i].clone().sub(gradient[1][last_grad - i].clone() * lr/dataset_len);
+                }
+            }
         }
-        //println!("\n\nweights after update: {:?}\n\n", self.weights.last().unwrap());
+    }
+
+
+   pub fn create_batches(dataset: dataset, batch_size: usize) -> ds_batch{
+        let mut batches:ds_batch = Vec::new();
+        let mut temp_batches: dataset = Vec::new();
+
+        let mut batch_indices: Vec<u32> = (0..dataset.len() as u32).collect();
+        let mut rng = thread_rng();
+        batch_indices.shuffle(&mut rng);
+        for i in batch_indices {
+            temp_batches.push(dataset[i as usize].clone());
+            if temp_batches.len() % batch_size == 0 {
+                batches.push(temp_batches);
+                temp_batches = Vec::new();
+            }
+        }
+        if temp_batches.len() != 0 { 
+            batches.push(temp_batches); 
+        }
+        println!("Num Batches Loaded: {}", batches.len());
+        batches
    }
 
-
    //TODO: code input to be Vec<Array2<f32>> for batch
-   pub fn calculate_gradient(&self, predictions: Vec<Vec<Vec<Array2<f32>>>>, input: Array2<f32>, expected: Vec<Array2<f32>>) -> Vec<Vec<Array2<f32>>>{
+   pub fn calculate_gradient(&self, predictions: &forward_batch, input: &Vec<Array2<f32>>, expected: &Vec<Array2<f32>>) -> Vec<Vec<Array2<f32>>>{
         let batch_size: usize = predictions.len();
-        println!("Batch #{}",batch_size);
         let last_pred: usize = predictions[0][0].len();
-        println!("Last prediction: {}",last_pred);
 
         
         let mut C_wrt_z: Array2<f32> = Array2::<f32>::zeros((1,1));
@@ -133,7 +149,7 @@ impl Sequential {
         for j in 0..batch_size {
             for i in (0..last_pred).rev() {
                 let z = predictions[j][0][i].clone();
-                let a_prev = if i > 0 {&predictions[j][1][i-1]} else {&input};
+                let a_prev = if i > 0 {&predictions[j][1][i-1]} else {&input[j]};
                 // ∂C/∂w = ∂Z/∂w * ∂A/∂Z * ∂C/∂A
                 if i == last_pred - 1{
                     // ∂C/∂zₙ = ∂aₙ/∂zₙ * ∂C/∂aₙ

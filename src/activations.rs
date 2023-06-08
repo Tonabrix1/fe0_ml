@@ -1,5 +1,5 @@
 use ndarray::{
-    Array, Dimension, DataMut, DataOwned, RawDataClone
+    Array, Dimension
 };
 use std::f32::consts::PI;
 use crate::matrixutil::{
