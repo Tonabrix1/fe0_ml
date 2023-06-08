@@ -18,10 +18,11 @@ fn main() {
 
     dataset = mnist_loader(dataset, 1);
 
-    let epochs = 10000;
-    let learning_rate = 0.001;
-    let first_sample = dataset[0].clone();
-    let batch_size: usize = 32;
+    let epochs = 100;
+    let learning_rate: f32 = 0.005;
+    let first_sample: Sample = dataset[0].clone();
+    //let second_sample: Sample = dataset[1].clone();
+    let batch_size: usize = 128;
 
     let input_dim = 784;
     let mut model = Sequential::new(input_dim.clone(), Cost::MSE);
@@ -31,5 +32,9 @@ fn main() {
     model.summary();
 
     model.train(dataset.clone(), learning_rate, batch_size, epochs);
-    model.predict(first_sample.0);
+    let pred_one = model.predict(first_sample.0);
+    //let pred_two = model.predict(second_sample.0);
+
+    println!("{}, {}", pred_one, first_sample.1);
+    //println!("{}, {}", pred_two, second_sample.1);
 }

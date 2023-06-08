@@ -15,8 +15,8 @@ impl Cost {
             Cost::MSE => { 
                 let mut outp: f32 = 0f32;
                 for i in 0..predicted.len() {
-                    let error = expected[i].clone().sub(predicted[i][1].last().unwrap());
-                    let squared_error = power_of(error, 2);
+                    let error: Array2<f32> = expected[i].clone().sub(predicted[i][1].last().unwrap());
+                    let squared_error: Array2<f32> = power_of(error, 2);
                     outp += squared_error.sum();
                 }
                 outp / predicted.len() as f32
@@ -30,12 +30,12 @@ impl Cost {
         match self {
             Cost::MSE => {
                 let m: &[usize] = expected[0].shape();
-                let mut outp = create_weight(vec![m[0],m[1]]);
+                let mut outp: Array2<f32> = create_weight(vec![m[0],m[1]]);
                 for i in 0..predicted.len() {
                     // using predicted - expected as a substitute for -(expected - predicted)
-                    let error = predicted[i][1].last().unwrap().clone().sub(&expected[i]);
+                    let error: Array2<f32> = predicted[i][1].last().unwrap().clone().sub(&expected[i]);
                     //temporarily leaving the - here because for some reason my gradient is ascending without it
-                    let derivative_squared_error = scalar_mult(error, -2f32/predicted.len() as f32);
+                    let derivative_squared_error: Array2<f32> = scalar_mult(error, -2f32/predicted.len() as f32);
                     outp = outp.clone().add(derivative_squared_error);
                 }
                 outp

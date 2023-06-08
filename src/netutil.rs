@@ -80,21 +80,23 @@ impl Sequential {
 
         // stores a_vec and z_vec for backprop and stuff; wasteful initialization here to keep the compiler comfy, optimize this
         let mut predictions: forward_batch = Vec::with_capacity(dataset_len as usize);
+        let mut batch_input: Vec<Array2<f32>> = Vec::with_capacity(batch_size);
+        let mut batch_labels: Vec<Array2<f32>> = Vec::with_capacity(batch_size);
         //println!("dataset len: {}", dataset.len());
         let batches: ds_batch = Self::create_batches(dataset, batch_size);
         for _ in 0..epochs {
             for batch in batches.iter() {
-                let batch_input: Vec<Array2<f32>> = Vec::new();
-                let batch_labels: Vec<Array2<f32>> = Vec::new(); 
                 for sample in batch.iter() {
                     x = sample.0.to_owned();
                     y = sample.1.to_owned();
                     fw_vec = self.collect_forward(x.clone());
                     predictions.push(fw_vec.clone());
                     //println!("prediction: {:?}\nexpected: {:?}\n\n", fw_vec[1].last().unwrap(), y.clone());
+                    batch_input.push(x.clone());
+                    batch_labels.push(y.clone());
                 }
             
-                println!("cost: {:?}", self.cost.calculate(&predictions, &vec![y.clone()]));
+                println!("cost: {:?}", self.cost.calculate(&predictions, &batch_labels));
 
                 //TODO: what the fuck is this I need to pass multiple x's and y's
                 let gradient = Sequential::calculate_gradient(self, &predictions, &batch_input, &batch_labels);
@@ -104,9 +106,12 @@ impl Sequential {
                 let last_grad = gradient[0].len() - 1;
                 //println!("\n\nweights before update: {:?}\n\n", self.weights.last().unwrap());
                 for i in (0..last_weight).rev() {
-                    self.weights[i] = self.weights[i].clone().sub(gradient[0][last_grad - i].clone() * lr/dataset_len);
-                    self.biases[i] = self.biases[i].clone().sub(gradient[1][last_grad - i].clone() * lr/dataset_len);
+                    self.weights[i] = self.weights[i].clone().sub(gradient[0][last_grad - i].clone() * lr);
+                    self.biases[i] = self.biases[i].clone().sub(gradient[1][last_grad - i].clone() * lr);
                 }
+                predictions.clear();
+                batch_input.clear();
+                batch_labels.clear()
             }
         }
     }
