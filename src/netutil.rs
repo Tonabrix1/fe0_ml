@@ -1,11 +1,12 @@
 use std::ops::Sub;
 use crate::layers::Layers;
-use crate::matrixutil::{init_rand, create_weight, init_he, init_xavier, transpose};
+use crate::matrixutil::{init_rand, create_weight, init_he, init_xavier};
 use rand::thread_rng;
 use rand::seq::SliceRandom;
 use crate::cost::Cost;
 use ndarray::{Array2, Ix2};
-use super::typings::{dataset, forward_batch, ds_batch, Sample};
+use crate::typings::{dataset, forward_batch, ds_batch};
+use crate::optimizers::Optimizers;
 
 pub trait Net {
     fn add(&mut self, layer: Layers);
@@ -69,7 +70,7 @@ impl Sequential {
         a
     }
 
-    pub fn train(&mut self, dataset: dataset, lr: f32, batch_size: usize, epochs: usize) {
+    pub fn train(&mut self, dataset: dataset, optimizer: Optimizers, lr: f32, batch_size: usize, epochs: usize) {
         //TODO: come back and optimize/simplify all this unorganized mess
         let mut x: Array2<f32> = Array2::<f32>::zeros((1,1));
         let mut y: Array2<f32> = Array2::<f32>::zeros((1,1));
@@ -99,7 +100,7 @@ impl Sequential {
                 println!("cost: {:?}", self.cost.calculate(&predictions, &batch_labels));
 
                 //TODO: what the fuck is this I need to pass multiple x's and y's
-                let gradient = Sequential::calculate_gradient(self, &predictions, &batch_input, &batch_labels);
+                let gradient = optimizer.backward(&self, &predictions, &batch_input, &batch_labels);
                 //println!("Final weight updates: {:?}\nFinal bias updates: {:?}", gradient[0].iter().last().unwrap(), gradient[1][0].iter().last().unwrap());
                 //println!("Final weights: {:?}\nFinal bias: {:?}", self.weights.last().unwrap(), self.biases.last().unwrap());
                 let last_weight: usize = self.weights.len()-1;
@@ -136,52 +137,6 @@ impl Sequential {
         }
         println!("Num Batches Loaded: {}", batches.len());
         batches
-   }
-
-   //TODO: code input to be Vec<Array2<f32>> for batch
-   pub fn calculate_gradient(&self, predictions: &forward_batch, input: &Vec<Array2<f32>>, expected: &Vec<Array2<f32>>) -> Vec<Vec<Array2<f32>>>{
-        let batch_size: usize = predictions.len();
-        let last_pred: usize = predictions[0][0].len();
-
-        
-        let mut C_wrt_z: Array2<f32> = Array2::<f32>::zeros((1,1));
-        let mut C_wrt_a: Array2<f32> = Array2::<f32>::zeros((1,1));
-        let mut weight_updates: Vec<Array2<f32>> = Vec::new();
-        let mut bias_updates: Vec<Array2<f32>> = Vec::new();
-
-        //TODO: store transposes of the weights every batch to avoid creating a new transpose array for every batch
-
-        for j in 0..batch_size {
-            for i in (0..last_pred).rev() {
-                let z = predictions[j][0][i].clone();
-                let a_prev = if i > 0 {&predictions[j][1][i-1]} else {&input[j]};
-                // ∂C/∂w = ∂Z/∂w * ∂A/∂Z * ∂C/∂A
-                if i == last_pred - 1{
-                    // ∂C/∂zₙ = ∂aₙ/∂zₙ * ∂C/∂aₙ
-                    C_wrt_z = self.layers[i].derivate_activation(z) * self.cost.derivate(&predictions, &expected);
-                } else {
-                    // ∂C/∂aₙ₋₁ = ∂zₙ/∂aₙ₋₁ * ∂C/∂zₙ
-                    // ∂zₙ/∂aₙ₋₁ = wₙ.T
-                    //println!("{:?} x {:?}",C_wrt_z.shape(), transpose(&self.weights[i+1]).shape());
-                    C_wrt_a = C_wrt_z.dot(&transpose(&self.weights[i+1]));
-                    // ∂C/∂zₙ₋₁ = ∂aₙ₋₁/∂zₙ₋₁ * ∂C/∂aₙ₋₁
-                    //println!("{:?} * {:?}",C_wrt_a.shape(), self.layers[i].derivate_activation(z.clone()).shape());
-                    C_wrt_z = self.layers[i].derivate_activation(z) * C_wrt_a;
-                }
-                // ∂C/∂bₙ = ∂Z/∂bₙ * ∂A/∂Z * ∂C/∂A
-                // ∂Z/∂bₙ = 1
-                // ∂C/∂bₙ = 1 * C_wrt_z = C_wrt_z
-                bias_updates.push(C_wrt_z.clone());
-                // ∂C/∂wₙ = ∂zₙ/∂wₙ * C_wrt_z
-                // Z(w,X,b) = w.X + b
-                // ∂Z/∂w = Xᵀ
-                //println!("{:?} x {:?}",transpose(a_prev).shape(), C_wrt_z.shape());
-                weight_updates.push(transpose(a_prev).dot(&C_wrt_z));
-                //println!("\n\nweights update dim: {:?}\n\n", transpose(a_prev).dot(&C_wrt_z).shape());
-            }
-        }
-        //println!("\n\nweight update vec: {:?}\n\n",weight_updates);
-        vec![weight_updates, bias_updates]
    }
 
    pub fn collect_forward(&self, input: Array2<f32>) -> Vec<Vec<Array2<f32>>>{
