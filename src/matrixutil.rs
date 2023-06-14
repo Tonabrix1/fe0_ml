@@ -70,7 +70,7 @@ pub fn scalar_mult<S,D>(weight: &mut ArrayBase<S, D>, val: f32) -> &mut ArrayBas
     weight
 }
 
-// subtracts val from each value in a 2D array
+// subtracts val from each value in an array
 pub fn scalar_sub<S,D>(weight: &mut ArrayBase<S, D>, val: f32) -> &mut ArrayBase<S, D> where S: DataMut<Elem = f32>, D: Dimension, {
     weight.mapv_inplace(|x: f32| x - val);
     weight
@@ -82,15 +82,27 @@ pub fn scalar_add<S,D>(weight: &mut ArrayBase<S, D>, val: f32) -> &mut ArrayBase
     weight
 }
 
-// replaces each value in a 2D array with its reciprocal (1/value)
+// replaces each value in an array with its reciprocal (1/value)
 pub fn scalar_reciprocal<S,D>(weight: &mut ArrayBase<S, D>) -> &mut ArrayBase<S, D> where S: DataMut<Elem = f32>, D: Dimension, {
     weight.mapv_inplace(|x: f32| 1. / x);
     weight
 }
 
-// raises each value in a 2D array to the power of val
+// raises each value in an array to the power of val
 pub fn power_of<S,D>(weight: &mut ArrayBase<S, D>, val: i32) -> &mut ArrayBase<S, D> where S: DataMut<Elem = f32>, D: Dimension, {
     weight.mapv_inplace(|x: f32| x.powi(val));
+    weight
+}
+
+//natural log on all values in an array
+pub fn log_weight<S, D>(weight: &mut ArrayBase<S, D>) -> &mut ArrayBase<S, D> where S: DataMut<Elem = f32>, D: Dimension, {
+    weight.mapv_inplace(|x| x.ln());
+    weight
+}
+
+//preforms max(val, x) for each value, x, in an array
+pub fn val_max<S, D>(weight: &mut ArrayBase<S, D>, val: f32) -> &mut ArrayBase<S, D> where S: DataMut<Elem = f32>, D: Dimension, { 
+    weight.mapv_inplace(|x| if x > val {x} else {val});
     weight
 }
 

@@ -1,5 +1,5 @@
 #![allow(dead_code, unused_variables, non_snake_case)]
-use std::ops::Sub;
+use std::ops::{Sub, Add};
 use rand::thread_rng;
 use rand::seq::SliceRandom;
 use ndarray::{Array2, Ix2};
@@ -37,13 +37,12 @@ impl Sequential {
         let dim: &mut Vec<usize> = &mut Vec::with_capacity(2);
         if self.weights.len() <= 0 { 
             dim.push(self.input_dim);
-            dim.push(layer.get_units());
+            dim.push(*layer.get_units());
         } else { 
             dim.push(*self.weights.last().unwrap().shape().last().unwrap());
-            dim.push(layer.get_units());
+            dim.push(*layer.get_units());
         }
         // converting the string back and forth like this is ugly as fuck
-        println!("{:?}", dim);
         let new_weights: Array2<f32> = match &layer.get_init_func().to_string().to_lowercase()[..] {
             "xavier" | "glorot" => init_xavier(dim),
             "kaiming" | "he" => init_he(dim),
@@ -55,20 +54,16 @@ impl Sequential {
 
 
     pub fn generate_biases(&mut self, layer: &Layers) {
-        let new_bias = create_weight::<Ix2>(&vec![1, (*layer).get_units()]);
+        let new_bias = create_weight::<Ix2>(&vec![1, *(*layer).get_units()]);
         self.biases.push(new_bias);
     }
 
     pub fn predict(&self, input: &Array2<f32>) -> Array2<f32>{
-        let mut x: &Array2<f32> = input;
-        //doing this dumb shit because rust won't let me run code with values that "could be uninitialized" fuck you
-        let mut z: Array2<f32> = self.layers[0].forward_propagate(x, &self.weights[0], &self.biases[0]);
-        let mut a: Array2<f32> = self.layers[0].activate(&mut z);
-        x = &a;
-        for i in 1..self.layers.len() {
-            z = self.layers[i].forward_propagate(x, &self.weights[i], &self.biases[i]);
-            a = self.layers[i].activate(&mut z);
-            x = &a;
+        let mut a: Array2<f32> = input.to_owned();
+        let mut z: Array2<f32>;
+        for i in 0..self.layers.len() {
+            z = self.layers[i].forward_propagate(&a, &self.weights[i], &self.biases[i]);
+            a = self.layers[i].activate(&z);
         }
         a
     }
@@ -78,11 +73,7 @@ impl Sequential {
         let mut x: Array2<f32>;
         let mut y: Array2<f32>;
         let dataset_len = dataset.len() as f32;
-        
-        //output for collect forward; wasteful initialization here to keep the compiler comfy, optimize this
         let mut fw_vec: Vec<Vec<Array2<f32>>>;
-
-        // stores a_vec and z_vec for backprop and stuff; wasteful initialization here to keep the compiler comfy, optimize this
         let mut predictions: ForwardBatch = Vec::with_capacity(dataset_len as usize);
         let mut batch_input: Vec<Array2<f32>> = Vec::with_capacity(batch_size);
         let mut batch_labels: Vec<Array2<f32>> = Vec::with_capacity(batch_size);
@@ -98,20 +89,20 @@ impl Sequential {
                     //println!("prediction: {:?}\nexpected: {:?}\n\n", fw_vec[1].last().unwrap(), y.clone());
                     batch_input.push(x.to_owned());
                     batch_labels.push(y.to_owned());
+                    println!("pred: {:?}\n exp: {:?}\n\n", fw_vec[1].last().unwrap(), y);
                 }
-            
-                println!("cost: {:?}", self.cost.calculate(&predictions, &batch_labels));
-
+                println!("cost: {:?}", self.cost.calculate_batch(&predictions, &batch_labels));
                 //TODO: what the fuck is this I need to pass multiple x's and y's
-                let gradient = optimizer.backward(&self, &mut predictions, &batch_input, &batch_labels);
+                let gradient = optimizer.backward(&self, &mut predictions, &batch_input, &batch_labels, lr);
                 //println!("Final weight updates: {:?}\nFinal bias updates: {:?}", gradient[0].iter().last().unwrap(), gradient[1][0].iter().last().unwrap());
                 //println!("Final weights: {:?}\nFinal bias: {:?}", self.weights.last().unwrap(), self.biases.last().unwrap());
                 let last_weight: usize = self.weights.len()-1;
                 let last_grad = gradient[0].len() - 1;
                 //println!("\n\nweights before update: {:?}\n\n", self.weights.last().unwrap());
+                // subtracting the positive gradient
                 for i in (0..last_weight).rev() {
-                    self.weights[i] = self.weights[i].clone().sub(gradient[0][last_grad - i].clone() * lr);
-                    self.biases[i] = self.biases[i].clone().sub(gradient[1][last_grad - i].clone() * lr);
+                    self.weights[i] = (&self.weights[i]).add(&gradient[0][last_grad - i]);
+                    self.biases[i] = (&self.biases[i]).add(&gradient[1][last_grad - i]);
                 }
                 predictions.clear();
                 batch_input.clear();

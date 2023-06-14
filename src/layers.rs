@@ -8,10 +8,10 @@ pub enum Layers {
 }
 
 impl Layers {
-    pub fn get_units(&self) -> usize {
+    pub fn get_units(&self) -> &usize {
         match self {
             Layers::Dense{units, activation, init_func} => {
-                units.clone()
+                &units
             },
         }
     }
