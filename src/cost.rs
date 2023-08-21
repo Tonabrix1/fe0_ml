@@ -1,7 +1,10 @@
 #![allow(dead_code)]
-use std::ops::{Sub, Add};
+use crate::{
+    matrixutil::{create_weight, power_of, scalar_mult},
+    typings::ForwardBatch,
+};
 use ndarray::Array2;
-use crate::{matrixutil::{power_of, scalar_mult, create_weight},typings::ForwardBatch};
+use std::ops::{Add, Sub};
 // enum storing each cost function
 pub enum Cost {
     MSE,
@@ -9,22 +12,20 @@ pub enum Cost {
 }
 
 impl Cost {
-
     // MSE(xᵢ,yᵢ) = 1/n Σ(i=0;n) (yᵢ-ŷᵢ)^2
-    pub fn calculate(&self, predicted: &ForwardBatch, expected: &Vec<Array2<f32>>) -> f32{
+    pub fn calculate(&self, predicted: &ForwardBatch, expected: &Vec<Array2<f32>>) -> f32 {
         match self {
-            Cost::MSE => { 
+            Cost::MSE => {
                 let mut outp: f32 = 0f32;
                 for i in 0..predicted.len() {
-                    let mut error: Array2<f32> = (&expected[i]).sub(predicted[i][1].last().unwrap());
+                    let mut error: Array2<f32> =
+                        (&expected[i]).sub(predicted[i][1].last().unwrap());
                     let squared_error: &Array2<f32> = power_of(&mut error, 2);
                     outp += squared_error.sum();
                 }
                 outp / predicted.len() as f32
-            },
-            Cost::CrossEntropy => {
-                1f32
             }
+            Cost::CrossEntropy => 1f32,
         }
     }
 
@@ -34,19 +35,19 @@ impl Cost {
         match self {
             Cost::MSE => {
                 let m: &[usize] = expected[0].shape();
-                let mut outp: Array2<f32> = create_weight(&vec![m[0],m[1]]);
+                let mut outp: Array2<f32> = create_weight(&vec![m[0], m[1]]);
                 for i in 0..predicted.len() {
                     // using predicted - expected as a substitute for -(expected - predicted)
-                    let mut error: Array2<f32> = (&predicted[i][1].last().unwrap()).sub(&expected[i]);
+                    let mut error: Array2<f32> =
+                        (&predicted[i][1].last().unwrap()).sub(&expected[i]);
                     //temporarily leaving the - here because for some reason my gradient is ascending without it
-                    let derivative_squared_error: &Array2<f32> = scalar_mult(&mut error, -2f32/predicted.len() as f32);
+                    let derivative_squared_error: &Array2<f32> =
+                        scalar_mult(&mut error, -2f32 / predicted.len() as f32);
                     outp = outp.clone().add(derivative_squared_error);
                 }
                 outp
-            },
-            Cost::CrossEntropy => {
-                expected[0].clone()
             }
+            Cost::CrossEntropy => expected[0].clone(),
         }
     }
 }
