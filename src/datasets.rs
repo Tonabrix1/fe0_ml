@@ -4,12 +4,13 @@ use crate::matrixutil::{create_weight, flatten};
 use crate::typings::{Dataset, Sample};
 
 pub fn mnist_loader(mut dataset: Dataset, training_samples: usize) -> Dataset{
+        
     let Mnist { trn_img, trn_lbl, ..} = MnistBuilder::new()
         .label_format_digit()
         .training_set_length(training_samples as u32)
         .validation_set_length(1)
         .test_set_length(1)
-        .base_path("/home/tona/Desktop/neuralnets/fe0_ml/src/data")
+        .base_path("./data")
         .finalize();
  
     let image_num = 0;
