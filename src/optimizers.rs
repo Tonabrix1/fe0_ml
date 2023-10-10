@@ -57,7 +57,7 @@ impl Optimizers {
                             weight_updates.push(transpose(a_prev).dot(&c_wrt_z));
                         } else {
                             let curr = last_pred - (1usize + i);
-                            // on batches after the first,
+                            // on batches after the first, accumulate updates
                             bias_updates[curr] = &bias_updates[curr] + &c_wrt_z;
                             weight_updates[curr] =
                                 &weight_updates[curr] + &transpose(a_prev).dot(&c_wrt_z);
